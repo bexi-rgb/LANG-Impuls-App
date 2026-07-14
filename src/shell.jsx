@@ -7,6 +7,7 @@ import {
   ChevronLeft, Sparkles, Edit3, X, Users, Search, Megaphone,
 } from 'lucide-react';
 import { C, FONT, MONO, INITIAL_TRAVELERS } from './constants.js';
+import { EMOJI_CATEGORIES } from './emoji.js';
 
 function useIsDesktop() {
   const [desktop, setDesktop] = useState(() =>
@@ -297,6 +298,36 @@ export function HomeSectionEditModal({ title, fields, initial, onSave, onClose }
           className="w-full py-2.5 rounded-xl text-[14px] font-black uppercase text-white hover:opacity-90 active:scale-[.99] transition">
           Änderungen speichern
         </button>
+      </div>
+    </div>
+  );
+}
+
+export function EmojiPicker({ onSelect, onClose }) {
+  const [cat, setCat] = useState(0);
+  return (
+    <div className="absolute inset-0 z-40 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: C.surfaceHigh, borderColor: `${C.charcoal}66` }}
+        className="w-full max-w-md border-t rounded-t-3xl p-5 space-y-3 fadeup max-h-[70%] flex flex-col">
+        <div className="flex items-center justify-between shrink-0">
+          <Label>Emoji</Label>
+          <button onClick={onClose} className="p-1.5 rounded-lg active:scale-95" style={{ background: `${C.charcoal}55` }}>
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="flex gap-1.5 overflow-x-auto shrink-0 -mx-1 px-1 pb-1">
+          {EMOJI_CATEGORIES.map((c, i) => (
+            <FilterChip key={c.label} active={cat === i} onClick={() => setCat(i)}>{c.label}</FilterChip>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-1 overflow-y-auto">
+          {EMOJI_CATEGORIES[cat].emojis.map((e) => (
+            <button key={e} type="button" onClick={() => onSelect(e)}
+              className="text-2xl leading-none py-2 rounded-lg hover:bg-white/10 active:scale-90 transition">
+              {e}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

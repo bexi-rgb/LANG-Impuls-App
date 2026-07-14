@@ -76,6 +76,21 @@ export default function App() {
     setPush({ id: `${Date.now()}`, title: "IMPULS Reise-Update", body: text });
   };
 
+  const toggleReaction = (messageId, emoji) => {
+    setMessages((ms) => ms.map((m) => {
+      if (m.id !== messageId) return m;
+      const reactions = { ...(m.reactions || {}) };
+      const uids = reactions[emoji] || [];
+      if (uids.includes(user.id)) {
+        const next = uids.filter((id) => id !== user.id);
+        if (next.length === 0) delete reactions[emoji]; else reactions[emoji] = next;
+      } else {
+        reactions[emoji] = [...uids, user.id];
+      }
+      return { ...m, reactions };
+    }));
+  };
+
   const addComment = (photoId, comment) =>
     setPhotos((ps) => ps.map((p) => (p.id === photoId ? { ...p, comments: [...p.comments, comment] } : p)));
 
@@ -153,7 +168,7 @@ export default function App() {
           {tab === "home" && <HomeTab setTab={setTab} broadcasts={broadcasts} messages={messages} schedule={schedule} onOpenDoc={openDoc} tiles={homeTiles} ticker={ticker} isAdmin={user.role === "admin"} onUpdateTile={updateTile} onReorderTiles={reorderTiles} onDeleteTile={deleteTile} onAddTile={addTile} onUpdateTicker={setTicker} user={user} />}
           {tab === "schedule" && <ScheduleTab schedule={schedule} onOpenDoc={openDoc} isAdmin={user.role === "admin"} onAddEvent={addEvent} onUpdateEvent={updateEvent} onDeleteEvent={deleteEvent} />}
           {tab === "documents" && <DocumentsTab user={user} docs={docs} travelers={travelers} focusId={docFocus} onAddDoc={addDoc} />}
-          {tab === "chat" && <ChatTab user={user} travelers={travelers} messages={messages} onSend={sendMessage} typing={typing} />}
+          {tab === "chat" && <ChatTab user={user} travelers={travelers} messages={messages} onSend={sendMessage} typing={typing} onToggleReaction={toggleReaction} />}
           {tab === "photos" && <PhotosTab photos={photos} user={user} onComment={addComment} onShare={sharePhoto} />}
           {tab === "admin" && user.role === "admin" && <AdminTab travelers={travelers} onBroadcast={broadcast} onToggleStatus={(id) => setTravelers((ts) => ts.map((t) => t.id === id ? { ...t, status: t.status === "ready" ? "missing" : "ready" } : t))} onAddTraveler={(t) => setTravelers((ts) => [...ts, t])} onAddEvent={addEvent} onResetData={resetPreviewData} />}
         </main>
