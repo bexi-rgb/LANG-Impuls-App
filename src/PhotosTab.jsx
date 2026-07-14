@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Camera, Image as ImageIcon, Upload, MessageCircle, Send, X, Sparkles, Heart, MapPin,
+  Camera, Image as ImageIcon, Upload, MessageCircle, Send, X, Sparkles, Heart, MapPin, Plus,
 } from 'lucide-react';
 import { C, MONO, SUGGESTED_TAGS, PHOTO_GRADIENTS } from './constants.js';
 import { Label, Avatar } from './shell.jsx';

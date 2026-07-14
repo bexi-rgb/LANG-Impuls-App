@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
-  ShieldAlert, Users, Megaphone, UserPlus, Calendar, CheckCircle2, X, Plus, MapPin, Database, Trash2,
+  ShieldAlert, Users, Megaphone, UserPlus, Calendar, CalendarDays, CheckCircle2, X, Plus, MapPin,
+  Database, Trash2, User, Mail, Lock, Smartphone,
 } from 'lucide-react';
 import { C, MONO, TRIP_DAYS } from './constants.js';
 import { Label, Avatar } from './shell.jsx';

@@ -3,7 +3,7 @@ import {
   Megaphone, Calendar, PlaneTakeoff, MessageSquare, Map, Download, FileText,
   ArrowRight, Sparkles, ChevronRight, PlaneLanding, User, Building, Key, MapPin,
   Clock, X, Plus, Move, Trash2, Edit3, Wifi, Phone, Utensils, Dumbbell, Waves,
-  Wine, Music, Car, Bell, Star, CalendarDays,
+  Wine, Music, Car, Bell, Star, CalendarDays, QrCode,
   Sun, Cloud, CloudSun, CloudRain, CloudSnow, CloudFog, CloudLightning, CloudDrizzle,
   Droplets, Wind, RefreshCw, AlertCircle,
 } from 'lucide-react';

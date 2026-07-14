@@ -2,9 +2,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Wifi, Signal, Battery, Home, Calendar, FileText, MessageCircle, Camera, ShieldAlert,
-  LogOut, LogIn, User, Key, Bell, ChevronDown, ChevronRight, ChevronLeft,
-  Sparkles, Edit3, X, Users, Search,
+  Wifi, Signal, Battery, Home, Calendar, CalendarDays, FileText, MessageCircle, MessageSquare,
+  Camera, ImageIcon, ShieldAlert, LogOut, LogIn, User, Key, Bell, ChevronDown, ChevronRight,
+  ChevronLeft, Sparkles, Edit3, X, Users, Search, Megaphone,
 } from 'lucide-react';
 import { C, FONT, MONO, INITIAL_TRAVELERS } from './constants.js';
 

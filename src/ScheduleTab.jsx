@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Calendar, Clock, MapPin, PlaneTakeoff, PlaneLanding, CalendarDays, Bus,
   Utensils, Landmark, Plus, Edit3, Check, X, Trash2, Download, ArrowRight,
+  ChevronLeft, ChevronRight, QrCode,
 } from 'lucide-react';
 import { C, MONO, TRIP_DAYS, TYPE_META, evDate, fmtDayLong, fmtDayShort, downloadICS } from './constants.js';
 import { Label } from './shell.jsx';
