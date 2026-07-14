@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body {
+    background: #1a1a1a;
+    color: #ffffff;
+    font-family: 'Raleway', ui-sans-serif, system-ui, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    /* respekt für iOS Safe-Area (Notch, Home-Indicator) im PWA-Fullscreen-Modus */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  #root {
+    min-height: 100dvh;
+  }
+}
+
+/* Animations */
+@keyframes ticker {
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-50%, 0, 0); }
+}
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.tickr { display: inline-flex; white-space: nowrap; animation: ticker 30s linear infinite; }
+.tickr:hover { animation-play-state: paused; }
+.fadeup { animation: fadeUp 0.3s ease both; }
+.slidedown { animation: slideDown 0.35s ease both; }
+.pulse { animation: pulseDot 1.6s ease infinite; }
+.slide-in-right { animation: slideInRight 0.22s ease-out both; }
+.slide-in-left { animation: slideInLeft 0.22s ease-out both; }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #1a1a19; }
+::-webkit-scrollbar-thumb { background: #575756; border-radius: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tickr, .pulse, .fadeup, .slidedown, .slide-in-right, .slide-in-left { animation: none; }
+}
