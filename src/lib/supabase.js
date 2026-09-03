@@ -92,16 +92,41 @@ export function useSession() {
 }
 
 /**
- * Magic-Link an eine E-Mail schicken. Der User klickt den Link, landet zurück
- * in der App, ist eingeloggt. Keine Passwörter zu merken.
+ * Wandelt einen einfachen Benutzernamen in die dahinterliegende Login-E-Mail um.
+ * "elena" → "elena@impuls.com". Enthält der Input bereits ein "@", wird er
+ * unverändert übernommen (für echte E-Mail-Logins wie den Admin-Account).
  */
-export async function sendMagicLink(email, redirectTo = window.location.origin) {
+export function toLoginEmail(input) {
+  const v = input.trim().toLowerCase();
+  return v.includes('@') ? v : `${v.replace(/\s+/g, '.')}@impuls.com`;
+}
+
+/**
+ * Login mit Benutzername/E-Mail + Passwort. Kein E-Mail-Versand nötig.
+ */
+export async function signInWithPassword(email, password) {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: redirectTo },
-  });
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw error;
+}
+
+/**
+ * Legt einen neuen Reisenden-Account an (nur für Admins). Läuft über die
+ * serverlose Funktion api/create-traveler, die mit dem Service-Role-Key
+ * arbeitet — der darf niemals im Browser-Bundle landen.
+ */
+export async function createTravelerAccount({ name, email, password }) {
+  if (!supabase) throw new Error('Supabase nicht konfiguriert');
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Nicht angemeldet');
+  const res = await fetch('/api/create-traveler', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ name, email, password }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || 'Konto konnte nicht angelegt werden.');
+  return body;
 }
 
 export async function signOut() {

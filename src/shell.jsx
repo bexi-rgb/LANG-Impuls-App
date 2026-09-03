@@ -3,11 +3,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Wifi, Signal, Battery, Home, Calendar, CalendarDays, FileText, MessageCircle, MessageSquare,
-  Camera, ImageIcon, ShieldAlert, LogOut, LogIn, User, Key, Mail, Bell, ChevronDown, ChevronRight,
+  Camera, ImageIcon, ShieldAlert, LogOut, LogIn, User, Key, Bell, ChevronDown, ChevronRight,
   ChevronLeft, Sparkles, Edit3, X, Users, Search, Megaphone,
 } from 'lucide-react';
 import { C, FONT, MONO, INITIAL_TRAVELERS } from './constants.js';
 import { EMOJI_CATEGORIES } from './emoji.js';
+import { toLoginEmail } from './lib/supabase.js';
 
 function useIsDesktop() {
   const [desktop, setDesktop] = useState(() =>
@@ -104,33 +105,31 @@ export const Logo = () => (
 );
 
 
-export function LoginView({ travelers, onLogin, useMagicLink = false, onSendMagicLink }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [err, setErr] = useState(null);
+export function LoginView({ travelers, onLogin, isSupabaseConfigured = false, onPasswordLogin }) {
+  const [u, setU] = useState(""); const [p, setP] = useState(""); const [err, setErr] = useState(null);
   const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
 
-  const submitDemo = () => {
+  const submit = async () => {
     setErr(null);
-    const name = email.trim().toLowerCase();
-    if (name === "admin" && password === "admin") return onLogin({ id: "admin", name: "Rebekka", email: "rebekka@impuls.com", role: "admin", avatarUrl: "" });
-    const m = travelers.find((t) => (t.username && t.username.toLowerCase() === name) || t.email.toLowerCase() === name || t.name.toLowerCase() === name);
-    if (m && (!m.password || m.password === password)) return onLogin({ ...m, role: "traveler" });
-    setErr(m ? "Falsches Passwort." : "Benutzername oder E-Mail-Adresse nicht gefunden.");
-  };
+    const name = u.trim().toLowerCase();
 
-  const submitMagic = async () => {
-    if (!email.trim()) { setErr("Bitte E-Mail-Adresse eingeben."); return; }
-    setErr(null); setSending(true);
-    try {
-      await onSendMagicLink(email.trim());
-      setSent(true);
-    } catch (e) {
-      setErr(e.message || "Login-Link konnte nicht gesendet werden.");
-    } finally {
-      setSending(false);
+    if (isSupabaseConfigured) {
+      if (!name || !p) { setErr("Bitte Benutzername und Passwort eingeben."); return; }
+      setSending(true);
+      try {
+        await onPasswordLogin(toLoginEmail(name), p);
+      } catch (e) {
+        setErr(e.message?.includes("Invalid") ? "Benutzername oder Passwort falsch." : (e.message || "Anmeldung fehlgeschlagen."));
+      } finally {
+        setSending(false);
+      }
+      return;
     }
+
+    if (name === "admin" && p === "admin") return onLogin({ id: "admin", name: "Rebekka", email: "rebekka@impuls.com", role: "admin", avatarUrl: "" });
+    const m = travelers.find((t) => (t.username && t.username.toLowerCase() === name) || t.email.toLowerCase() === name || t.name.toLowerCase() === name);
+    if (m && (!m.password || m.password === p)) return onLogin({ ...m, role: "traveler" });
+    setErr(m ? "Falsches Passwort." : "Benutzername oder E-Mail-Adresse nicht gefunden.");
   };
 
   const input = { background: `${C.charcoal}4d`, borderColor: `${C.charcoal}80`, fontFamily: MONO };
@@ -142,72 +141,34 @@ export function LoginView({ travelers, onLogin, useMagicLink = false, onSendMagi
           <div style={{ background: C.gold }} className="inline-block px-6 py-4 rounded-2xl shadow-xl"><Logo /></div>
           <Label>Exklusiver Reise-Concierge</Label>
           <h2 className="text-3xl font-extrabold tracking-tight uppercase">Taiwan Expedition 2026</h2>
-          <p style={{ color: C.silver }} className="text-sm font-light max-w-sm mx-auto">
-            {useMagicLink
-              ? "Geben Sie Ihre E-Mail-Adresse ein. Wir schicken Ihnen einen Login-Link zu, mit dem Sie sich mit einem Klick anmelden können."
-              : "Bitte melden Sie sich an, um auf Ihre persönlichen Reisedokumente, den Concierge-Chat und Reise-Updates zuzugreifen."}
-          </p>
+          <p style={{ color: C.silver }} className="text-sm font-light max-w-sm mx-auto">Bitte melden Sie sich an, um auf Ihre persönlichen Reisedokumente, den Concierge-Chat und Reise-Updates zuzugreifen.</p>
         </div>
         <div style={{ background: C.surface, borderColor: `${C.charcoal}4d` }} className="border rounded-2xl p-6 shadow-2xl">
-          {sent ? (
-            <div className="space-y-4 text-center py-4">
-              <div style={{ background: `${C.teal}26` }} className="w-14 h-14 rounded-full mx-auto flex items-center justify-center">
-                <Mail className="w-6 h-6" style={{ color: C.teal }} />
+          <div className="space-y-4">
+            {err && <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-xl flex items-center gap-2"><ShieldAlert className="w-5 h-5 shrink-0" />{err}</div>}
+            <div className="space-y-1.5">
+              <span style={{ color: C.silver, letterSpacing: "0.2em" }} className="text-[14px] font-bold uppercase block">Benutzername / Name</span>
+              <div className="relative">
+                <User className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 opacity-40" />
+                <input value={u} onChange={(e) => setU(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} placeholder="z.B. admin oder elena"
+                  style={input} className="w-full border rounded-xl pl-9 pr-3.5 py-3 text-sm text-white placeholder:opacity-70 focus:outline-none" />
               </div>
-              <p className="text-sm font-bold">Login-Link gesendet!</p>
-              <p style={{ color: C.silver }} className="text-[13px]">
-                Wir haben eine E-Mail an <span className="font-bold text-white">{email}</span> geschickt. Klicken Sie auf den Link darin, um sich anzumelden.
-              </p>
-              <button onClick={() => { setSent(false); setEmail(""); }} style={{ color: C.gold }} className="text-[12px] font-black uppercase tracking-widest hover:underline">
-                Andere Adresse
-              </button>
             </div>
-          ) : (
-            <div className="space-y-4">
-              {err && <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-xl flex items-center gap-2"><ShieldAlert className="w-5 h-5 shrink-0" />{err}</div>}
-              <div className="space-y-1.5">
-                <span style={{ color: C.silver, letterSpacing: "0.2em" }} className="text-[14px] font-bold uppercase block">
-                  {useMagicLink ? "E-Mail-Adresse" : "Benutzername / Name"}
-                </span>
-                <div className="relative">
-                  {useMagicLink
-                    ? <Mail className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 opacity-40" />
-                    : <User className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 opacity-40" />}
-                  <input
-                    type={useMagicLink ? "email" : "text"}
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && (useMagicLink ? submitMagic() : submitDemo())}
-                    placeholder={useMagicLink ? "sie@beispiel.de" : "z.B. admin oder elena"}
-                    style={input}
-                    className="w-full border rounded-xl pl-9 pr-3.5 py-3 text-sm text-white placeholder:opacity-70 focus:outline-none"
-                    autoComplete={useMagicLink ? "email" : "username"}
-                  />
-                </div>
+            <div className="space-y-1.5">
+              <span style={{ color: C.silver, letterSpacing: "0.2em" }} className="text-[14px] font-bold uppercase block">Passwort</span>
+              <div className="relative">
+                <Key className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 opacity-40" />
+                <input type="password" value={p} onChange={(e) => setP(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} placeholder="••••••"
+                  style={input} className="w-full border rounded-xl pl-9 pr-3.5 py-3 text-sm text-white placeholder:opacity-70 focus:outline-none" />
               </div>
-              {!useMagicLink && (
-                <div className="space-y-1.5">
-                  <span style={{ color: C.silver, letterSpacing: "0.2em" }} className="text-[14px] font-bold uppercase block">Passwort</span>
-                  <div className="relative">
-                    <Key className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 opacity-40" />
-                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submitDemo()} placeholder="••••••"
-                      style={input} className="w-full border rounded-xl pl-9 pr-3.5 py-3 text-sm text-white placeholder:opacity-70 focus:outline-none" />
-                  </div>
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={useMagicLink ? submitMagic : submitDemo}
-                disabled={sending}
-                style={{ background: C.gold, letterSpacing: "0.2em" }}
-                className="w-full py-3 rounded-xl text-sm font-black uppercase text-white hover:opacity-90 active:scale-[.99] transition disabled:opacity-50">
-                {sending ? "Sende Link..." : useMagicLink ? "Login-Link senden" : "Anmelden"}
-              </button>
-              {!useMagicLink && (
-                <p style={{ color: `${C.silver}e6`, fontFamily: MONO }} className="text-[14px] text-center">Demo: admin/admin · elena/taiwan · marco/taiwan</p>
-              )}
             </div>
-          )}
+            <button type="button" onClick={submit} disabled={sending} style={{ background: C.gold, letterSpacing: "0.2em" }} className="w-full py-3 rounded-xl text-sm font-black uppercase text-white hover:opacity-90 active:scale-[.99] transition disabled:opacity-50">
+              {sending ? "Anmelden..." : "Anmelden"}
+            </button>
+            {!isSupabaseConfigured && (
+              <p style={{ color: `${C.silver}e6`, fontFamily: MONO }} className="text-[14px] text-center">Demo: admin/admin · elena/taiwan · marco/taiwan</p>
+            )}
+          </div>
         </div>
       </div>
     </div>

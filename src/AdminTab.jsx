@@ -11,6 +11,9 @@ export function AdminTab({ travelers, onBroadcast, onToggleStatus, onAddTraveler
   const [msg, setMsg] = useState("");
   const [sent, setSent] = useState(false);
   const [nName, setNName] = useState(""); const [nUser, setNUser] = useState(""); const [nPass, setNPass] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createErr, setCreateErr] = useState(null);
+  const [created, setCreated] = useState(false);
   const [eDate, setEDate] = useState(TRIP_DAYS[0]); const [eTime, setETime] = useState("09:00");
   const [eTitle, setETitle] = useState(""); const [eLoc, setELoc] = useState("");
   const [eType, setEType] = useState("activity"); const [eDoc, setEDoc] = useState("");
@@ -25,10 +28,19 @@ export function AdminTab({ travelers, onBroadcast, onToggleStatus, onAddTraveler
     if (!msg.trim()) return;
     onBroadcast(msg.trim()); setMsg(""); setSent(true); setTimeout(() => setSent(false), 3500);
   };
-  const addT = () => {
-    if (!nName.trim()) return;
-    onAddTraveler({ id: `t${Date.now()}`, name: nName.trim(), email: `${(nUser || nName).trim().toLowerCase().replace(/\s+/g, ".")}@impuls.com`, username: nUser.trim() || undefined, password: nPass || undefined, avatarUrl: "", status: "missing", roomType: "Standard-Zimmer" });
-    setNName(""); setNUser(""); setNPass("");
+  const addT = async () => {
+    if (!nName.trim() || !nPass) return;
+    setCreateErr(null);
+    setCreating(true);
+    try {
+      await onAddTraveler({ id: `t${Date.now()}`, name: nName.trim(), email: `${(nUser || nName).trim().toLowerCase().replace(/\s+/g, ".")}@impuls.com`, username: nUser.trim() || undefined, password: nPass, avatarUrl: "", status: "missing", roomType: "Standard-Zimmer" });
+      setNName(""); setNUser(""); setNPass("");
+      setCreated(true); setTimeout(() => setCreated(false), 3500);
+    } catch (e) {
+      setCreateErr(e.message || "Konto konnte nicht angelegt werden.");
+    } finally {
+      setCreating(false);
+    }
   };
   const input = { background: `${C.charcoal}4d`, borderColor: `${C.charcoal}80` };
   return (
@@ -59,14 +71,22 @@ export function AdminTab({ travelers, onBroadcast, onToggleStatus, onAddTraveler
 
         <div style={{ background: C.surface, borderColor: `${C.charcoal}4d` }} className="border rounded-2xl p-5 space-y-4">
           <div className="flex items-center gap-2"><UserPlus className="w-5 h-5" style={{ color: C.gold }} /><Label>Reisenden anlegen</Label></div>
+          {created && (
+            <div style={{ background: `${C.teal}1a`, borderColor: `${C.teal}4d`, color: C.teal }} className="border p-2.5 rounded-xl flex items-center gap-2 text-sm fadeup">
+              <CheckCircle2 className="w-5 h-5 shrink-0" /> Konto angelegt — Login-Daten können jetzt weitergegeben werden.
+            </div>
+          )}
+          {createErr && (
+            <div className="p-2.5 bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-xl">{createErr}</div>
+          )}
           <div className="space-y-2.5">
             <div className="relative"><User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 opacity-40" />
               <input value={nName} onChange={(e) => setNName(e.target.value)} placeholder="Vollständiger Name" required style={input} className="w-full border rounded-xl pl-8 pr-3 py-2.5 text-sm text-white placeholder:opacity-70 focus:outline-none" /></div>
             <div className="relative"><Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 opacity-40" />
               <input value={nUser} onChange={(e) => setNUser(e.target.value)} placeholder="Benutzername (Login)" style={input} className="w-full border rounded-xl pl-8 pr-3 py-2.5 text-sm text-white placeholder:opacity-70 focus:outline-none" /></div>
             <div className="relative"><Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 opacity-40" />
-              <input value={nPass} onChange={(e) => setNPass(e.target.value)} placeholder="Passwort" type="password" style={input} className="w-full border rounded-xl pl-8 pr-3 py-2.5 text-sm text-white placeholder:opacity-70 focus:outline-none" /></div>
-            <button type="button" onClick={addT} style={{ background: C.teal, letterSpacing: "0.15em" }} className="w-full py-2.5 rounded-xl text-[14px] font-black uppercase text-white hover:opacity-90 active:scale-[.99] transition">Konto erstellen</button>
+              <input value={nPass} onChange={(e) => setNPass(e.target.value)} placeholder="Passwort (mind. 6 Zeichen)" type="password" style={input} className="w-full border rounded-xl pl-8 pr-3 py-2.5 text-sm text-white placeholder:opacity-70 focus:outline-none" /></div>
+            <button type="button" onClick={addT} disabled={creating} style={{ background: C.teal, letterSpacing: "0.15em" }} className="w-full py-2.5 rounded-xl text-[14px] font-black uppercase text-white hover:opacity-90 active:scale-[.99] transition disabled:opacity-50">{creating ? "Wird angelegt..." : "Konto erstellen"}</button>
           </div>
         </div>
       </div>

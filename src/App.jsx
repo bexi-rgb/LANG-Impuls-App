@@ -8,7 +8,7 @@ import {
   evDate, fmtDayShort, conciergeReply, C,
 } from './constants.js';
 import { usePersistentState, loadValue, saveValue, removeValue, clearAll } from './storage.js';
-import { isSupabaseConfigured, useSession, sendMagicLink, signOut } from './lib/supabase.js';
+import { isSupabaseConfigured, useSession, signInWithPassword, createTravelerAccount, updateRow, useCollection, signOut } from './lib/supabase.js';
 import { HomeTab } from './HomeTab.jsx';
 import { ScheduleTab } from './ScheduleTab.jsx';
 import { DocumentsTab } from './DocumentsTab.jsx';
@@ -23,7 +23,13 @@ const DEFAULT_NOTIFICATIONS = [
 
 export default function App() {
   // ── Persistierter State ─────────────────────────────────────────
-  const [travelers, setTravelers] = usePersistentState('travelers', INITIAL_TRAVELERS);
+  // travelers: bei Supabase-Konfiguration live aus der DB (inkl. Realtime),
+  // sonst lokaler Demo-Fallback.
+  const [travelersLocal, setTravelersLocal] = usePersistentState('travelers', INITIAL_TRAVELERS);
+  const { data: travelersRemote } = useCollection('travelers', { orderBy: 'created_at' });
+  const travelers = isSupabaseConfigured
+    ? travelersRemote.map((t) => ({ ...t, avatarUrl: t.avatar_url || '', roomType: t.room_type || '' }))
+    : travelersLocal;
   const [messages, setMessages] = usePersistentState('messages', INITIAL_MESSAGES);
   const [photos, setPhotos] = usePersistentState('photos', INITIAL_PHOTOS);
   const [notifications, setNotifications] = usePersistentState('notifications', DEFAULT_NOTIFICATIONS);
@@ -161,12 +167,31 @@ export default function App() {
 
   const updateAvatar = (dataUrl) => {
     if (isSupabaseConfigured) {
-      // TODO: Update via updateRow('travelers', user.id, { avatar_url: dataUrl })
+      if (user?.id) updateRow('travelers', user.id, { avatar_url: dataUrl }).catch((e) => console.warn('[avatar]', e.message));
     } else {
       setDemoUser((u) => ({ ...u, avatarUrl: dataUrl }));
+      setTravelersLocal((ts) => ts.map((t) => (t.id === user?.id ? { ...t, avatarUrl: dataUrl } : t)));
     }
-    setTravelers((ts) => ts.map((t) => (t.id === user?.id ? { ...t, avatarUrl: dataUrl } : t)));
     setNotifications((n) => ["Profilbild aktualisiert.", ...n]);
+  };
+
+  const toggleTravelerStatus = (id) => {
+    if (isSupabaseConfigured) {
+      const t = travelers.find((x) => x.id === id);
+      if (!t) return;
+      updateRow('travelers', id, { status: t.status === "ready" ? "missing" : "ready" }).catch((e) => console.warn('[status]', e.message));
+    } else {
+      setTravelersLocal((ts) => ts.map((t) => t.id === id ? { ...t, status: t.status === "ready" ? "missing" : "ready" } : t));
+    }
+  };
+
+  const addTraveler = async (t) => {
+    if (isSupabaseConfigured) {
+      await createTravelerAccount({ name: t.name, email: t.email, password: t.password });
+      // Realtime-Subscription auf 'travelers' holt den neuen Eintrag automatisch nach.
+    } else {
+      setTravelersLocal((ts) => [...ts, t]);
+    }
   };
 
   const resetPreviewData = () => {
@@ -191,8 +216,8 @@ export default function App() {
       <LoginView
         travelers={travelers}
         onLogin={login}
-        useMagicLink={isSupabaseConfigured}
-        onSendMagicLink={sendMagicLink}
+        isSupabaseConfigured={isSupabaseConfigured}
+        onPasswordLogin={signInWithPassword}
       />
     </PhoneFrame>
   );
@@ -208,7 +233,7 @@ export default function App() {
           {tab === "documents" && <DocumentsTab user={user} docs={docs} travelers={travelers} focusId={docFocus} onAddDoc={addDoc} />}
           {tab === "chat" && <ChatTab user={user} travelers={travelers} messages={messages} onSend={sendMessage} typing={typing} onToggleReaction={toggleReaction} />}
           {tab === "photos" && <PhotosTab photos={photos} user={user} onComment={addComment} onShare={sharePhoto} />}
-          {tab === "admin" && user.role === "admin" && <AdminTab travelers={travelers} onBroadcast={broadcast} onToggleStatus={(id) => setTravelers((ts) => ts.map((t) => t.id === id ? { ...t, status: t.status === "ready" ? "missing" : "ready" } : t))} onAddTraveler={(t) => setTravelers((ts) => [...ts, t])} onAddEvent={addEvent} onResetData={resetPreviewData} />}
+          {tab === "admin" && user.role === "admin" && <AdminTab travelers={travelers} onBroadcast={broadcast} onToggleStatus={toggleTravelerStatus} onAddTraveler={addTraveler} onAddEvent={addEvent} onResetData={resetPreviewData} />}
         </main>
         <BottomNav tab={tab} setTab={setTab} isAdmin={user.role === "admin"} />
       </div>
