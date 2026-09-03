@@ -3,7 +3,7 @@ import {
   ShieldAlert, Users, Megaphone, UserPlus, Calendar, CalendarDays, CheckCircle2, X, Plus, MapPin,
   Database, Trash2, User, Mail, Lock, Smartphone,
 } from 'lucide-react';
-import { C, MONO, TRIP_DAYS } from './constants.js';
+import { C, MONO, TRIP_DAYS, fmtDayShort } from './constants.js';
 import { Label, Avatar } from './shell.jsx';
 import { storageSize, formatBytes } from './storage.js';
 

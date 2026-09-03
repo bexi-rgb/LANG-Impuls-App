@@ -8,6 +8,7 @@ import {
   evDate, fmtDayShort, conciergeReply, C,
 } from './constants.js';
 import { usePersistentState, loadValue, saveValue, removeValue, clearAll } from './storage.js';
+import { isSupabaseConfigured, useSession, sendMagicLink, signOut } from './lib/supabase.js';
 import { HomeTab } from './HomeTab.jsx';
 import { ScheduleTab } from './ScheduleTab.jsx';
 import { DocumentsTab } from './DocumentsTab.jsx';
@@ -38,23 +39,36 @@ export default function App() {
   const [push, setPush] = useState(null);
   const [docFocus, setDocFocus] = useState(null);
 
-  // ── User-Session (bleibt eingeloggt über Reloads) ──────────────
-  const [user, setUser] = useState(() => {
+  // ── User-Session ────────────────────────────────────────────────
+  // Wenn Supabase konfiguriert ist: benutze echte Auth via useSession.
+  // Sonst: Fallback auf LocalStorage-Demo-Login (aktueller Modus).
+  const { profile, loading: authLoading } = useSession();
+  const [demoUser, setDemoUser] = useState(() => {
+    if (isSupabaseConfigured) return null;
     const stored = loadValue('user', null);
     if (!stored) return null;
     if (stored.role === 'admin') return stored;
     const currentTravelers = loadValue('travelers', INITIAL_TRAVELERS);
-    const stillExists = currentTravelers.some((t) => t.id === stored.id);
-    return stillExists ? stored : null;
+    return currentTravelers.some((t) => t.id === stored.id) ? stored : null;
   });
 
-  useEffect(() => {
-    if (user) saveValue('user', user);
-    else removeValue('user');
-  }, [user]);
+  // Aggregierter User: Supabase-Profil hat Vorrang, sonst Demo-User
+  const user = isSupabaseConfigured
+    ? (profile ? { ...profile, avatarUrl: profile.avatar_url || '' } : null)
+    : demoUser;
 
-  const login = (u) => { setUser(u); setTab("home"); };
-  const logout = () => { setUser(null); };
+  useEffect(() => {
+    if (!isSupabaseConfigured) {
+      if (demoUser) saveValue('user', demoUser);
+      else removeValue('user');
+    }
+  }, [demoUser]);
+
+  const login = (u) => { setDemoUser(u); setTab("home"); };
+  const logout = async () => {
+    if (isSupabaseConfigured) await signOut();
+    else setDemoUser(null);
+  };
 
   const now = () => new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 
@@ -146,7 +160,11 @@ export default function App() {
   };
 
   const updateAvatar = (dataUrl) => {
-    setUser((u) => ({ ...u, avatarUrl: dataUrl }));
+    if (isSupabaseConfigured) {
+      // TODO: Update via updateRow('travelers', user.id, { avatar_url: dataUrl })
+    } else {
+      setDemoUser((u) => ({ ...u, avatarUrl: dataUrl }));
+    }
     setTravelers((ts) => ts.map((t) => (t.id === user?.id ? { ...t, avatarUrl: dataUrl } : t)));
     setNotifications((n) => ["Profilbild aktualisiert.", ...n]);
   };
@@ -157,7 +175,27 @@ export default function App() {
     window.location.reload();
   };
 
-  if (!user) return (<PhoneFrame><LoginView travelers={travelers} onLogin={login} /></PhoneFrame>);
+  // Warten bis Auth-State geladen ist (Flash of Login vermeiden)
+  if (isSupabaseConfigured && authLoading) {
+    return (
+      <PhoneFrame>
+        <div style={{ background: C.bg }} className="h-full flex items-center justify-center">
+          <p style={{ color: C.silver }} className="text-sm">Lade Sitzung...</p>
+        </div>
+      </PhoneFrame>
+    );
+  }
+
+  if (!user) return (
+    <PhoneFrame>
+      <LoginView
+        travelers={travelers}
+        onLogin={login}
+        useMagicLink={isSupabaseConfigured}
+        onSendMagicLink={sendMagicLink}
+      />
+    </PhoneFrame>
+  );
 
   return (
     <PhoneFrame>
