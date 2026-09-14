@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   PhoneFrame, Header, BottomNav, LoginView, PushOverlay,
 } from './shell.jsx';
@@ -10,7 +10,7 @@ import {
 import { usePersistentState, loadValue, saveValue, removeValue, clearAll } from './storage.js';
 import {
   isSupabaseConfigured, useSession, signInWithPassword, createTravelerAccount,
-  insertRow, updateRow, deleteRow, useCollection, uploadFile, getPublicUrl, signOut,
+  insertRow, updateRow, deleteRow, useCollection, uploadFile, getPublicUrl, setConfig, signOut,
 } from './lib/supabase.js';
 import { HomeTab } from './HomeTab.jsx';
 import { ScheduleTab } from './ScheduleTab.jsx';
@@ -62,7 +62,11 @@ export default function App() {
       }))
     : photosLocal;
 
-  const [notifications, setNotifications] = usePersistentState('notifications', DEFAULT_NOTIFICATIONS);
+  // notifications: lokale Aktions-Bestätigungen (ephemeral, pro Gerät) +
+  // bei Supabase zusätzlich echte Admin-Broadcasts aus der DB (geräteübergreifend).
+  const [notificationsLocal, setNotificationsLocal] = usePersistentState('notifications', DEFAULT_NOTIFICATIONS);
+  const [notificationsClearedAt, setNotificationsClearedAt] = usePersistentState('notificationsClearedAt', 0);
+  const { data: broadcastNotifications } = useCollection('notifications', { orderBy: 'created_at', ascending: false });
 
   const [scheduleLocal, setScheduleLocal] = usePersistentState('schedule', INITIAL_SCHEDULE);
   const { data: scheduleRemote } = useCollection('schedule', { orderBy: 'date' });
@@ -76,8 +80,15 @@ export default function App() {
     ? docsRemote.map((d) => ({ id: d.id, title: d.title, subtitle: d.subtitle, description: d.description, type: d.type, travelerId: d.traveler_id || undefined, filePath: d.file_path || undefined, verified: d.verified, qr: d.qr }))
     : docsLocal;
 
-  const [homeTiles, setHomeTiles] = usePersistentState('homeTiles', INITIAL_HOME_TILES);
-  const [ticker, setTicker] = usePersistentState('ticker', INITIAL_TICKER);
+  const [homeTilesLocal, setHomeTilesLocal] = usePersistentState('homeTiles', INITIAL_HOME_TILES);
+  const { data: homeTilesRemote } = useCollection('home_tiles', { orderBy: 'position' });
+  const homeTiles = isSupabaseConfigured
+    ? homeTilesRemote.map((t) => ({ id: t.id, type: t.type, data: t.data, position: t.position }))
+    : homeTilesLocal;
+
+  const [tickerLocal, setTickerLocal] = usePersistentState('ticker', INITIAL_TICKER);
+  const { data: tickerRows } = useCollection('app_config', { filter: (q) => q.eq('key', 'ticker') });
+  const ticker = isSupabaseConfigured ? (tickerRows[0]?.value ?? INITIAL_TICKER) : tickerLocal;
 
   // ── Nicht-persistierter Sitzungs-State ──────────────────────────
   const [tab, setTab] = useState("home");
@@ -103,6 +114,18 @@ export default function App() {
   const user = isSupabaseConfigured
     ? (profile ? { ...profile, avatarUrl: profile.avatar_url || '' } : null)
     : demoUser;
+
+  const remoteNotificationTexts = isSupabaseConfigured
+    ? broadcastNotifications
+        .filter((n) => (n.recipient_id === null || n.recipient_id === user?.id) && new Date(n.created_at).getTime() > notificationsClearedAt)
+        .map((n) => n.text)
+    : [];
+  const notifications = isSupabaseConfigured ? [...remoteNotificationTexts, ...notificationsLocal] : notificationsLocal;
+  const setNotifications = setNotificationsLocal;
+  const clearNotifications = () => {
+    if (isSupabaseConfigured) setNotificationsClearedAt(Date.now());
+    setNotificationsLocal([]);
+  };
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -137,10 +160,36 @@ export default function App() {
   };
 
   const broadcast = (text) => {
+    if (isSupabaseConfigured) {
+      insertRow('notifications', { text: `BROADCAST: ${text}`, recipient_id: null }).catch((e) => console.warn('[broadcast]', e.message));
+      // Live-Push + Ticker-Flash laufen für ALLE Clients über den Realtime-Effekt unten,
+      // nicht nur lokal — so sehen auch andere eingeloggte Reisende den Broadcast sofort.
+      return;
+    }
     setBroadcasts((b) => [text, ...b]);
     setNotifications((n) => [`BROADCAST: ${text}`, ...n]);
     setPush({ id: `${Date.now()}`, title: "IMPULS Reise-Update", body: text });
   };
+
+  // Neue Broadcasts (von irgendeinem Admin-Client eingefügt) live an ALLE
+  // verbundenen Clients pushen: Toast + Ticker-Flash. Beim ersten Laden nur
+  // merken, welche Broadcasts schon existieren — sonst würde jeder Reload
+  // alte Broadcasts erneut als Push anzeigen.
+  const seenBroadcastIds = useRef(null);
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    if (seenBroadcastIds.current === null) {
+      seenBroadcastIds.current = new Set(broadcastNotifications.map((n) => n.id));
+      return;
+    }
+    const fresh = broadcastNotifications.filter((n) => !seenBroadcastIds.current.has(n.id));
+    fresh.forEach((n) => {
+      seenBroadcastIds.current.add(n.id);
+      const text = n.text.replace(/^BROADCAST: /, '');
+      setBroadcasts((b) => [text, ...b]);
+      setPush({ id: n.id, title: "IMPULS Reise-Update", body: text });
+    });
+  }, [broadcastNotifications]);
 
   const computeToggledReactions = (m, emoji) => {
     const reactions = { ...(m.reactions || {}) };
@@ -187,11 +236,29 @@ export default function App() {
   };
 
   const updateTile = (id, data) => {
-    setHomeTiles((prev) => prev.map((t) => t.id === id ? { ...t, data: { ...t.data, ...data } } : t));
+    if (isSupabaseConfigured) {
+      const t = homeTiles.find((x) => x.id === id);
+      if (!t) return;
+      updateRow('home_tiles', id, { data: { ...t.data, ...data } }).catch((e) => console.warn('[tile]', e.message));
+      return;
+    }
+    setHomeTilesLocal((prev) => prev.map((t) => t.id === id ? { ...t, data: { ...t.data, ...data } } : t));
     setNotifications((n) => [`Startseiten-Kachel aktualisiert.`, ...n]);
   };
   const reorderTiles = (fromId, toId) => {
-    setHomeTiles((prev) => {
+    if (isSupabaseConfigured) {
+      const arr = [...homeTiles];
+      const fromIdx = arr.findIndex((t) => t.id === fromId);
+      const toIdx = arr.findIndex((t) => t.id === toId);
+      if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
+      const [moved] = arr.splice(fromIdx, 1);
+      arr.splice(toIdx, 0, moved);
+      arr.forEach((t, i) => {
+        if (t.position !== i + 1) updateRow('home_tiles', t.id, { position: i + 1 }).catch((e) => console.warn('[tile]', e.message));
+      });
+      return;
+    }
+    setHomeTilesLocal((prev) => {
       const arr = [...prev];
       const fromIdx = arr.findIndex((t) => t.id === fromId);
       const toIdx = arr.findIndex((t) => t.id === toId);
@@ -202,15 +269,31 @@ export default function App() {
     });
   };
   const deleteTile = (id) => {
-    setHomeTiles((prev) => prev.filter((t) => t.id !== id));
+    if (isSupabaseConfigured) {
+      deleteRow('home_tiles', id).catch((e) => console.warn('[tile]', e.message));
+      return;
+    }
+    setHomeTilesLocal((prev) => prev.filter((t) => t.id !== id));
     setNotifications((n) => [`Kachel von der Startseite entfernt.`, ...n]);
   };
   const addTile = (type) => {
     const tpl = TILE_TEMPLATES[type];
     if (!tpl) return;
+    if (isSupabaseConfigured) {
+      const nextPosition = homeTiles.reduce((max, t) => Math.max(max, t.position || 0), 0) + 1;
+      insertRow('home_tiles', { id: `t-${Date.now()}`, type, position: nextPosition, data: tpl.default() }).catch((e) => console.warn('[tile]', e.message));
+      return;
+    }
     const newTile = { id: `t-${Date.now()}`, type, data: tpl.default() };
-    setHomeTiles((prev) => [...prev, newTile]);
+    setHomeTilesLocal((prev) => [...prev, newTile]);
     setNotifications((n) => [`Neue ${tpl.label}-Kachel hinzugefügt.`, ...n]);
+  };
+  const updateTicker = (text) => {
+    if (isSupabaseConfigured) {
+      setConfig('ticker', text).catch((e) => console.warn('[ticker]', e.message));
+      return;
+    }
+    setTickerLocal(text);
   };
   const addDoc = async (d) => {
     if (isSupabaseConfigured) {
@@ -319,9 +402,9 @@ export default function App() {
     <PhoneFrame>
       <div style={{ background: C.bg }} className="relative h-full flex flex-col text-white">
         <PushOverlay push={push} onClose={() => setPush(null)} />
-        <Header notifications={notifications} onClear={() => setNotifications([])} user={user} onLogout={logout} onUpdateAvatar={updateAvatar} />
+        <Header notifications={notifications} onClear={clearNotifications} user={user} onLogout={logout} onUpdateAvatar={updateAvatar} />
         <main className="flex-1 min-h-0 overflow-y-auto">
-          {tab === "home" && <HomeTab setTab={setTab} broadcasts={broadcasts} messages={messages} travelers={travelers} schedule={schedule} onOpenDoc={openDoc} tiles={homeTiles} ticker={ticker} isAdmin={user.role === "admin"} onUpdateTile={updateTile} onReorderTiles={reorderTiles} onDeleteTile={deleteTile} onAddTile={addTile} onUpdateTicker={setTicker} user={user} />}
+          {tab === "home" && <HomeTab setTab={setTab} broadcasts={broadcasts} messages={messages} travelers={travelers} schedule={schedule} onOpenDoc={openDoc} tiles={homeTiles} ticker={ticker} isAdmin={user.role === "admin"} onUpdateTile={updateTile} onReorderTiles={reorderTiles} onDeleteTile={deleteTile} onAddTile={addTile} onUpdateTicker={updateTicker} user={user} />}
           {tab === "schedule" && <ScheduleTab schedule={schedule} onOpenDoc={openDoc} isAdmin={user.role === "admin"} onAddEvent={addEvent} onUpdateEvent={updateEvent} onDeleteEvent={deleteEvent} />}
           {tab === "documents" && <DocumentsTab user={user} docs={docs} travelers={travelers} focusId={docFocus} onAddDoc={addDoc} />}
           {tab === "chat" && <ChatTab user={user} travelers={travelers} messages={messages} onSend={sendMessage} typing={typing} onToggleReaction={toggleReaction} />}
