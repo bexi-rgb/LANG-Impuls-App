@@ -8,7 +8,10 @@ import {
   evDate, fmtDayShort, conciergeReply, C,
 } from './constants.js';
 import { usePersistentState, loadValue, saveValue, removeValue, clearAll } from './storage.js';
-import { isSupabaseConfigured, useSession, signInWithPassword, createTravelerAccount, updateRow, useCollection, signOut } from './lib/supabase.js';
+import {
+  isSupabaseConfigured, useSession, signInWithPassword, createTravelerAccount,
+  insertRow, updateRow, deleteRow, useCollection, uploadFile, getPublicUrl, signOut,
+} from './lib/supabase.js';
 import { HomeTab } from './HomeTab.jsx';
 import { ScheduleTab } from './ScheduleTab.jsx';
 import { DocumentsTab } from './DocumentsTab.jsx';
@@ -21,6 +24,11 @@ const DEFAULT_NOTIFICATIONS = [
   "Flug CI 062: Status aktualisiert auf PÜNKTLICH.",
 ];
 
+function shortTime(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+}
+
 export default function App() {
   // ── Persistierter State ─────────────────────────────────────────
   // travelers: bei Supabase-Konfiguration live aus der DB (inkl. Realtime),
@@ -30,11 +38,44 @@ export default function App() {
   const travelers = isSupabaseConfigured
     ? travelersRemote.map((t) => ({ ...t, avatarUrl: t.avatar_url || '', roomType: t.room_type || '' }))
     : travelersLocal;
-  const [messages, setMessages] = usePersistentState('messages', INITIAL_MESSAGES);
-  const [photos, setPhotos] = usePersistentState('photos', INITIAL_PHOTOS);
+  const [messagesLocal, setMessagesLocal] = usePersistentState('messages', INITIAL_MESSAGES);
+  const { data: messagesRemote } = useCollection('messages', { orderBy: 'created_at' });
+  const messages = isSupabaseConfigured
+    ? messagesRemote.map((m) => ({ id: m.id, channel: m.channel, senderId: m.sender_id, text: m.text, status: m.status, time: shortTime(m.created_at), reactions: m.reactions || {} }))
+    : messagesLocal;
+
+  const [photosLocal, setPhotosLocal] = usePersistentState('photos', INITIAL_PHOTOS);
+  const { data: photosRemote } = useCollection('photos', { orderBy: 'created_at', ascending: false });
+  const { data: photoCommentsRemote } = useCollection('photo_comments', { orderBy: 'created_at' });
+  const photos = isSupabaseConfigured
+    ? photosRemote.map((p) => ({
+        id: p.id,
+        image: getPublicUrl('photos', p.image_path),
+        title: p.title,
+        author: travelers.find((t) => t.id === p.author_id)?.name || 'Unbekannt',
+        authorId: p.author_id,
+        time: shortTime(p.created_at),
+        tags: p.tags || [],
+        comments: photoCommentsRemote
+          .filter((c) => c.photo_id === p.id)
+          .map((c) => ({ id: c.id, author: travelers.find((t) => t.id === c.author_id)?.name || 'Unbekannt', text: c.text, time: shortTime(c.created_at) })),
+      }))
+    : photosLocal;
+
   const [notifications, setNotifications] = usePersistentState('notifications', DEFAULT_NOTIFICATIONS);
-  const [schedule, setSchedule] = usePersistentState('schedule', INITIAL_SCHEDULE);
-  const [docs, setDocs] = usePersistentState('docs', INITIAL_DOCS);
+
+  const [scheduleLocal, setScheduleLocal] = usePersistentState('schedule', INITIAL_SCHEDULE);
+  const { data: scheduleRemote } = useCollection('schedule', { orderBy: 'date' });
+  const schedule = isSupabaseConfigured
+    ? scheduleRemote.map((e) => ({ id: e.id, date: e.date, time: (e.time || '').slice(0, 5), title: e.title, location: e.location || undefined, type: e.type, docId: e.doc_id || undefined }))
+    : scheduleLocal;
+
+  const [docsLocal, setDocsLocal] = usePersistentState('docs', INITIAL_DOCS);
+  const { data: docsRemote } = useCollection('documents', { orderBy: 'created_at', ascending: false });
+  const docs = isSupabaseConfigured
+    ? docsRemote.map((d) => ({ id: d.id, title: d.title, subtitle: d.subtitle, description: d.description, type: d.type, travelerId: d.traveler_id || undefined, filePath: d.file_path || undefined, verified: d.verified, qr: d.qr }))
+    : docsLocal;
+
   const [homeTiles, setHomeTiles] = usePersistentState('homeTiles', INITIAL_HOME_TILES);
   const [ticker, setTicker] = usePersistentState('ticker', INITIAL_TICKER);
 
@@ -79,13 +120,18 @@ export default function App() {
   const now = () => new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 
   const sendMessage = (text, channel) => {
+    if (isSupabaseConfigured) {
+      insertRow('messages', { channel, sender_id: user.id, text }).catch((e) => console.warn('[message]', e.message));
+      // Realtime-Subscription holt die neue Nachricht bei allen Teilnehmern automatisch nach.
+      return;
+    }
     const senderId = user?.role === "admin" ? "admin" : user?.id;
-    setMessages((m) => [...m, { id: `m${Date.now()}`, channel, senderId, text, time: now(), status: "read" }]);
+    setMessagesLocal((m) => [...m, { id: `m${Date.now()}`, channel, senderId, text, time: now(), status: "read" }]);
     if (user?.role !== "admin" && channel === `direct:${user.id}`) {
       setTyping(true);
       setTimeout(() => {
         setTyping(false);
-        setMessages((m) => [...m, { id: `m${Date.now()}b`, channel, senderId: "admin", text: conciergeReply(text), time: now() }]);
+        setMessagesLocal((m) => [...m, { id: `m${Date.now()}b`, channel, senderId: "admin", text: conciergeReply(text), time: now() }]);
       }, 1400);
     }
   };
@@ -96,26 +142,47 @@ export default function App() {
     setPush({ id: `${Date.now()}`, title: "IMPULS Reise-Update", body: text });
   };
 
-  const toggleReaction = (messageId, emoji) => {
-    setMessages((ms) => ms.map((m) => {
-      if (m.id !== messageId) return m;
-      const reactions = { ...(m.reactions || {}) };
-      const uids = reactions[emoji] || [];
-      if (uids.includes(user.id)) {
-        const next = uids.filter((id) => id !== user.id);
-        if (next.length === 0) delete reactions[emoji]; else reactions[emoji] = next;
-      } else {
-        reactions[emoji] = [...uids, user.id];
-      }
-      return { ...m, reactions };
-    }));
+  const computeToggledReactions = (m, emoji) => {
+    const reactions = { ...(m.reactions || {}) };
+    const uids = reactions[emoji] || [];
+    if (uids.includes(user.id)) {
+      const next = uids.filter((id) => id !== user.id);
+      if (next.length === 0) delete reactions[emoji]; else reactions[emoji] = next;
+    } else {
+      reactions[emoji] = [...uids, user.id];
+    }
+    return reactions;
   };
 
-  const addComment = (photoId, comment) =>
-    setPhotos((ps) => ps.map((p) => (p.id === photoId ? { ...p, comments: [...p.comments, comment] } : p)));
+  const toggleReaction = (messageId, emoji) => {
+    if (isSupabaseConfigured) {
+      const m = messages.find((x) => x.id === messageId);
+      if (!m) return;
+      updateRow('messages', messageId, { reactions: computeToggledReactions(m, emoji) }).catch((e) => console.warn('[reaction]', e.message));
+      return;
+    }
+    setMessagesLocal((ms) => ms.map((m) => (m.id === messageId ? { ...m, reactions: computeToggledReactions(m, emoji) } : m)));
+  };
 
-  const sharePhoto = (photo) => {
-    setPhotos((ps) => [photo, ...ps]);
+  const addComment = (photoId, comment) => {
+    if (isSupabaseConfigured) {
+      insertRow('photo_comments', { photo_id: photoId, author_id: user.id, text: comment.text }).catch((e) => console.warn('[comment]', e.message));
+      return;
+    }
+    setPhotosLocal((ps) => ps.map((p) => (p.id === photoId ? { ...p, comments: [...p.comments, comment] } : p)));
+  };
+
+  const sharePhoto = async (photo) => {
+    if (isSupabaseConfigured) {
+      let imagePath = null;
+      if (photo.imageFile) {
+        const { path } = await uploadFile('photos', photo.imageFile, user.id);
+        imagePath = path;
+      }
+      await insertRow('photos', { title: photo.title, author_id: user.id, image_path: imagePath, tags: photo.tags });
+      return;
+    }
+    setPhotosLocal((ps) => [photo, ...ps]);
     setNotifications((n) => [`${photo.author} hat ein Foto geteilt: „${photo.title}\u201C`, ...n]);
   };
 
@@ -145,23 +212,49 @@ export default function App() {
     setHomeTiles((prev) => [...prev, newTile]);
     setNotifications((n) => [`Neue ${tpl.label}-Kachel hinzugefügt.`, ...n]);
   };
-  const addDoc = (d) => {
-    setDocs((prev) => [d, ...prev]);
+  const addDoc = async (d) => {
+    if (isSupabaseConfigured) {
+      let filePath = null;
+      if (d.file) {
+        const { path } = await uploadFile('documents', d.file, d.travelerId || 'group');
+        filePath = path;
+      }
+      await insertRow('documents', {
+        title: d.title, subtitle: d.subtitle, description: d.description, type: d.type,
+        traveler_id: d.travelerId || null, file_path: filePath, verified: false, qr: !!d.qr,
+      });
+      return;
+    }
+    setDocsLocal((prev) => [d, ...prev]);
     const owner = d.travelerId ? (travelers.find((t) => t.id === d.travelerId)?.name || "Reisegruppe") : "Reisegruppe";
     setNotifications((n) => [`Neues Dokument abgelegt: „${d.title}\u201C (${owner})`, ...n]);
   };
   const openDoc = (docId) => { setDocFocus(docId); setTab("documents"); };
   const addEvent = (ev) => {
-    setSchedule((s) => [...s, ev].sort((a, b) => evDate(a) - evDate(b)));
+    if (isSupabaseConfigured) {
+      insertRow('schedule', { date: ev.date, time: ev.time, title: ev.title, location: ev.location || null, type: ev.type, doc_id: ev.docId || null })
+        .catch((e) => console.warn('[schedule]', e.message));
+      return;
+    }
+    setScheduleLocal((s) => [...s, ev].sort((a, b) => evDate(a) - evDate(b)));
     setNotifications((n) => [`Neuer Termin: ${ev.title} (${fmtDayShort(ev.date)}, ${ev.time} Uhr)`, ...n]);
   };
   const updateEvent = (ev) => {
-    setSchedule((s) => s.map((x) => (x.id === ev.id ? ev : x)).sort((a, b) => evDate(a) - evDate(b)));
+    if (isSupabaseConfigured) {
+      updateRow('schedule', ev.id, { date: ev.date, time: ev.time, title: ev.title, location: ev.location || null, type: ev.type, doc_id: ev.docId || null })
+        .catch((e) => console.warn('[schedule]', e.message));
+      return;
+    }
+    setScheduleLocal((s) => s.map((x) => (x.id === ev.id ? ev : x)).sort((a, b) => evDate(a) - evDate(b)));
     setNotifications((n) => [`Termin aktualisiert: ${ev.title}`, ...n]);
   };
   const deleteEvent = (id) => {
+    if (isSupabaseConfigured) {
+      deleteRow('schedule', id).catch((e) => console.warn('[schedule]', e.message));
+      return;
+    }
     const removed = schedule.find((x) => x.id === id);
-    setSchedule((s) => s.filter((x) => x.id !== id));
+    setScheduleLocal((s) => s.filter((x) => x.id !== id));
     if (removed) setNotifications((n) => [`Termin entfernt: ${removed.title}`, ...n]);
   };
 
@@ -228,7 +321,7 @@ export default function App() {
         <PushOverlay push={push} onClose={() => setPush(null)} />
         <Header notifications={notifications} onClear={() => setNotifications([])} user={user} onLogout={logout} onUpdateAvatar={updateAvatar} />
         <main className="flex-1 min-h-0 overflow-y-auto">
-          {tab === "home" && <HomeTab setTab={setTab} broadcasts={broadcasts} messages={messages} schedule={schedule} onOpenDoc={openDoc} tiles={homeTiles} ticker={ticker} isAdmin={user.role === "admin"} onUpdateTile={updateTile} onReorderTiles={reorderTiles} onDeleteTile={deleteTile} onAddTile={addTile} onUpdateTicker={setTicker} user={user} />}
+          {tab === "home" && <HomeTab setTab={setTab} broadcasts={broadcasts} messages={messages} travelers={travelers} schedule={schedule} onOpenDoc={openDoc} tiles={homeTiles} ticker={ticker} isAdmin={user.role === "admin"} onUpdateTile={updateTile} onReorderTiles={reorderTiles} onDeleteTile={deleteTile} onAddTile={addTile} onUpdateTicker={setTicker} user={user} />}
           {tab === "schedule" && <ScheduleTab schedule={schedule} onOpenDoc={openDoc} isAdmin={user.role === "admin"} onAddEvent={addEvent} onUpdateEvent={updateEvent} onDeleteEvent={deleteEvent} />}
           {tab === "documents" && <DocumentsTab user={user} docs={docs} travelers={travelers} focusId={docFocus} onAddDoc={addDoc} />}
           {tab === "chat" && <ChatTab user={user} travelers={travelers} messages={messages} onSend={sendMessage} typing={typing} onToggleReaction={toggleReaction} />}

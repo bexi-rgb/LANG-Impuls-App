@@ -8,6 +8,7 @@ import { QUICK_REACTIONS } from './emoji.js';
 
 export function ChatTab({ user, travelers, messages, onSend, typing, onToggleReaction }) {
   const isAdmin = user.role === "admin";
+  const isSenderAdmin = (id) => id === "admin" || travelers.find((t) => t.id === id)?.role === "admin";
   const [mode, setMode] = useState("direct"); // "direct" | "group"
   const [partnerId, setPartnerId] = useState(null); // null = Chatliste (nur Admin)
   const [text, setText] = useState("");
@@ -82,7 +83,7 @@ export function ChatTab({ user, travelers, messages, onSend, typing, onToggleRea
     return () => document.removeEventListener("click", close);
   }, [reactMsgId]);
 
-  const nameOf = (id) => id === "admin" ? "Rebekka" : (travelers.find((t) => t.id === id)?.name || "Unbekannt");
+  const nameOf = (id) => isSenderAdmin(id) ? "Rebekka" : (travelers.find((t) => t.id === id)?.name || "Unbekannt");
   const partnerObj = (id) => travelers.find((t) => t.id === id) || null;
   const lastMessageFor = (id) => {
     const msgs = messages.filter((m) => m.channel === `direct:${id}`);
@@ -152,9 +153,9 @@ export function ChatTab({ user, travelers, messages, onSend, typing, onToggleRea
               </div>
             )}
             {listItems.map(({ t, last }) => {
-              const isPending = last && last.senderId !== "admin";
+              const isPending = last && !isSenderAdmin(last.senderId);
               const previewText = last?.text || "Noch keine Nachrichten";
-              const previewPrefix = !last ? "" : last.senderId === "admin" ? "Sie: " : "";
+              const previewPrefix = !last ? "" : isSenderAdmin(last.senderId) ? "Sie: " : "";
               return (
                 <button key={t.id} onClick={() => setPartnerId(t.id)}
                   className="w-full text-left px-2 py-3 rounded-xl hover:bg-white/[0.03] active:bg-white/[0.06] transition flex items-center gap-3">
@@ -235,7 +236,7 @@ export function ChatTab({ user, travelers, messages, onSend, typing, onToggleRea
                 <div key={m.id} className={`flex ${me ? "justify-end" : "justify-start"} gap-2`}>
                   {!me && mode === "group" && (
                     <div className={`shrink-0 self-end ${showSender ? "opacity-100" : "opacity-0"}`}>
-                      {m.senderId === "admin" ? (
+                      {isSenderAdmin(m.senderId) ? (
                         <div style={{ background: C.gold, color: "#fff" }} className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black">R</div>
                       ) : (
                         <Avatar user={senderObj} size={28} />
@@ -244,8 +245,8 @@ export function ChatTab({ user, travelers, messages, onSend, typing, onToggleRea
                   )}
                   <div className={`flex flex-col max-w-[80%] ${me ? "items-end" : "items-start"}`}>
                     {showSender && (
-                      <span style={{ color: m.senderId === "admin" ? C.gold : C.teal, fontFamily: MONO, letterSpacing: "0.1em" }} className="text-[11px] font-black uppercase mb-1 px-1">
-                        {nameOf(m.senderId)}{m.senderId === "admin" ? " · Concierge" : ""}
+                      <span style={{ color: isSenderAdmin(m.senderId) ? C.gold : C.teal, fontFamily: MONO, letterSpacing: "0.1em" }} className="text-[11px] font-black uppercase mb-1 px-1">
+                        {nameOf(m.senderId)}{isSenderAdmin(m.senderId) ? " · Concierge" : ""}
                       </span>
                     )}
                     <div className="relative group/bubble">

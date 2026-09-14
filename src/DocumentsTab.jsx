@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { C, MONO, DOC_TYPES } from './constants.js';
 import { Label } from './shell.jsx';
+import { isSupabaseConfigured, getSignedUrl } from './lib/supabase.js';
 
 export function DocumentUploadModal({ user, travelers, onSave, onClose }) {
   const isAdmin = user.role === "admin";
@@ -14,6 +15,7 @@ export function DocumentUploadModal({ user, travelers, onSave, onClose }) {
   const [type, setType] = useState("pdf");
   const [assignee, setAssignee] = useState(isAdmin ? "" : user.id); // "" = Gruppe
   const [fileName, setFileName] = useState("");
+  const [file, setFile] = useState(null);
   const fileRef = useRef(null);
   const input = { background: `${C.charcoal}4d`, borderColor: `${C.charcoal}80` };
 
@@ -21,6 +23,7 @@ export function DocumentUploadModal({ user, travelers, onSave, onClose }) {
   const onFileChange = (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
+    setFile(f);
     setFileName(f.name);
     if (!title) setTitle(f.name.replace(/\.[^/.]+$/, ""));
     // File size in a friendly format
@@ -40,6 +43,7 @@ export function DocumentUploadModal({ user, travelers, onSave, onClose }) {
       icon: DOC_TYPES[type].icon,
       travelerId: assignee || undefined, // undefined = Gruppendokument
       verified: false,
+      file: file || undefined,
     };
     onSave(doc);
     onClose();
@@ -221,7 +225,18 @@ export function DocumentsTab({ user, docs, travelers, focusId, onAddDoc }) {
                     </span>
                   )}
                   {d.qr && <span style={{ background: `${C.charcoal}4d` }} className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[14px] font-bold"><QrCode className="w-4 h-4" style={{ color: C.gold }} />QR-Code</span>}
-                  <button style={{ color: C.silver }} className="flex items-center gap-1.5 text-[14px] font-bold hover:text-white transition"><Download className="w-4 h-4" />Herunterladen</button>
+                  {isSupabaseConfigured && d.filePath ? (
+                    <button
+                      onClick={async () => {
+                        const url = await getSignedUrl('documents', d.filePath);
+                        if (url) window.open(url, '_blank', 'noopener');
+                      }}
+                      style={{ color: C.silver }} className="flex items-center gap-1.5 text-[14px] font-bold hover:text-white transition">
+                      <Download className="w-4 h-4" />Herunterladen
+                    </button>
+                  ) : !isSupabaseConfigured && (
+                    <button style={{ color: C.silver }} className="flex items-center gap-1.5 text-[14px] font-bold hover:text-white transition"><Download className="w-4 h-4" />Herunterladen</button>
+                  )}
                 </div>
               </div>
             </div>

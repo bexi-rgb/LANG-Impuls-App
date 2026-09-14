@@ -6,7 +6,8 @@ import {
 import { C, MONO, SUGGESTED_TAGS, PHOTO_GRADIENTS } from './constants.js';
 
 export function SharePhotoModal({ user, onClose, onShare }) {
-  const [image, setImage] = useState(null);      // data URL
+  const [image, setImage] = useState(null);      // data URL (Vorschau)
+  const [imageFile, setImageFile] = useState(null); // echtes File-Objekt für Upload
   const [title, setTitle] = useState("");
   const [tags, setTags] = useState([]);
   const [tagInput, setTagInput] = useState("");
@@ -25,6 +26,7 @@ export function SharePhotoModal({ user, onClose, onShare }) {
   const onGalleryPick = (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
+    setImageFile(file);
     const reader = new FileReader();
     reader.onloadend = () => { if (typeof reader.result === "string") { setImage(reader.result); stopCam(); } };
     reader.readAsDataURL(file);
@@ -52,6 +54,7 @@ export function SharePhotoModal({ user, onClose, onShare }) {
     canvas.height = v.videoHeight || 1080;
     canvas.getContext("2d").drawImage(v, 0, 0, canvas.width, canvas.height);
     setImage(canvas.toDataURL("image/jpeg", 0.9));
+    canvas.toBlob((blob) => { if (blob) setImageFile(new File([blob], `capture-${Date.now()}.jpg`, { type: "image/jpeg" })); }, "image/jpeg", 0.9);
     stopCam();
   };
 
@@ -64,7 +67,7 @@ export function SharePhotoModal({ user, onClose, onShare }) {
 
   const share = () => {
     if (!image) return;
-    onShare({ id: `p${Date.now()}`, image, title: title.trim() || "Ohne Titel", author: user.name, time: "gerade eben", tags, comments: [] });
+    onShare({ id: `p${Date.now()}`, image, imageFile, title: title.trim() || "Ohne Titel", author: user.name, time: "gerade eben", tags, comments: [] });
     onClose();
   };
 

@@ -573,7 +573,7 @@ export function tileEditTitle(tile) {
   return "Bearbeiten";
 }
 
-export function HomeTab({ setTab, broadcasts, messages, schedule, onOpenDoc, tiles, ticker, isAdmin = false, onUpdateTile, onReorderTiles, onDeleteTile, onAddTile, onUpdateTicker, user }) {
+export function HomeTab({ setTab, broadcasts, messages, travelers = [], schedule, onOpenDoc, tiles, ticker, isAdmin = false, onUpdateTile, onReorderTiles, onDeleteTile, onAddTile, onUpdateTicker, user }) {
   const [editMode, setEditMode] = useState(false);
   const [editing, setEditing] = useState(null); // 'ticker' | tileId | null
   const [detailTileId, setDetailTileId] = useState(null);
@@ -743,7 +743,7 @@ export function HomeTab({ setTab, broadcasts, messages, schedule, onOpenDoc, til
         {preview.map((m) => (
           <p key={m.id} style={{ color: C.silver }} className="text-sm leading-relaxed border-l-2 pl-3">
             <span style={{ color: m.senderId === user.id ? C.gold : C.white }} className="font-bold">
-              {m.senderId === user.id ? "Sie" : (m.senderId === "admin" ? "Rebekka" : "Gruppe")}:{" "}
+              {m.senderId === user.id ? "Sie" : (m.senderId === "admin" || travelers.find((t) => t.id === m.senderId)?.role === "admin" ? "Rebekka" : (travelers.find((t) => t.id === m.senderId)?.name || "Gruppe"))}:{" "}
             </span>{m.text}
           </p>
         ))}

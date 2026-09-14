@@ -213,6 +213,16 @@ export async function deleteRow(table, id) {
 }
 
 /**
+ * Öffentliche URL für eine Datei in einem öffentlichen Bucket (z.B. 'photos').
+ * Für private Buckets (z.B. 'documents') stattdessen getSignedUrl verwenden.
+ */
+export function getPublicUrl(bucket, path) {
+  if (!supabase || !path) return null;
+  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+  return data?.publicUrl || null;
+}
+
+/**
  * Einzelnen JSONB-Schlüssel aus app_config holen (für Ticker etc.).
  */
 export async function getConfig(key, fallback = null) {
