@@ -55,7 +55,15 @@ export function PhoneFrame({ children }) {
   // Mobile: kein Frame — App füllt den Bildschirm wie eine echte App
   if (!isDesktop) {
     return (
-      <div className="h-[100dvh] w-full flex flex-col text-white overflow-hidden" style={{ background: C.bg, fontFamily: FONT }}>
+      <div
+        className="h-[100dvh] w-full flex flex-col text-white overflow-hidden"
+        style={{
+          background: C.bg,
+          fontFamily: FONT,
+          paddingTop: "env(safe-area-inset-top)",
+          paddingBottom: "env(safe-area-inset-bottom)",
+        }}
+      >
         <div className="relative flex-1 min-h-0 flex flex-col">{children}</div>
       </div>
     );

@@ -13,12 +13,10 @@
   }
   body {
     /* Verhindert, dass die Seite selbst scrollt (sonst wandert die Bottom-Nav mit) —
-       nur der Inhaltsbereich in shell.jsx scrollt. */
+       nur der Inhaltsbereich in shell.jsx scrollt. Safe-Area-Padding sitzt in shell.jsx
+       auf dem App-Wrapper selbst, damit body exakt 100dvh bleibt (kein Höhen-Overflow). */
     overflow: hidden;
     overscroll-behavior: none;
-    /* respekt für iOS Safe-Area (Notch, Home-Indicator) im PWA-Fullscreen-Modus */
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
   }
   #root {
     height: 100%;
