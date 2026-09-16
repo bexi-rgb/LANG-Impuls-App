@@ -7,7 +7,7 @@ import {
 import { C, MONO, TRIP_DAYS, TYPE_META, evDate, fmtDayLong, fmtDayShort, downloadICS } from './constants.js';
 import { Label } from './shell.jsx';
 
-export function ScheduleEventModal({ initial, defaultDate, onSave, onDelete, onClose }) {
+export function ScheduleEventModal({ initial, defaultDate, docs = [], onSave, onDelete, onClose }) {
   const isEdit = !!initial?.id;
   const [date, setDate] = useState(initial?.date || defaultDate || TRIP_DAYS[0]);
   const [time, setTime] = useState(initial?.time || "09:00");
@@ -82,8 +82,9 @@ export function ScheduleEventModal({ initial, defaultDate, onSave, onDelete, onC
               <select value={docId} onChange={(e) => setDocId(e.target.value)} style={input}
                 className="border rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none appearance-none">
                 <option value="" style={{ background: C.surfaceHigh }}>Keine Bordkarte</option>
-                <option value="d2" style={{ background: C.surfaceHigh }}>Bordkarte Hinflug IM882</option>
-                <option value="d3" style={{ background: C.surfaceHigh }}>Bordkarte Rückflug IM883</option>
+                {docs.filter((d) => d.type === "ticket").map((d) => (
+                  <option key={d.id} value={d.id} style={{ background: C.surfaceHigh }}>{d.title}{d.subtitle ? ` — ${d.subtitle}` : ""}</option>
+                ))}
               </select>
             ) : <div />}
           </div>
@@ -106,7 +107,7 @@ export function ScheduleEventModal({ initial, defaultDate, onSave, onDelete, onC
   );
 }
 
-export function ScheduleTab({ schedule, onOpenDoc, isAdmin = false, onAddEvent, onUpdateEvent, onDeleteEvent }) {
+export function ScheduleTab({ schedule, docs = [], onOpenDoc, isAdmin = false, onAddEvent, onUpdateEvent, onDeleteEvent }) {
   const [day, setDay] = useState(0);
   const [editing, setEditing] = useState(null); // null | { mode: 'add'|'edit', event? }
   const startX = useRef(null);
@@ -226,6 +227,7 @@ export function ScheduleTab({ schedule, onOpenDoc, isAdmin = false, onAddEvent, 
         <ScheduleEventModal
           initial={editing.mode === "edit" ? editing.event : null}
           defaultDate={date}
+          docs={docs}
           onSave={(ev) => {
             if (editing.mode === "edit") onUpdateEvent(ev);
             else onAddEvent(ev);

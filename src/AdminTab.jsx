@@ -7,7 +7,7 @@ import { C, MONO, TRIP_DAYS, fmtDayShort } from './constants.js';
 import { Label, Avatar } from './shell.jsx';
 import { storageSize, formatBytes } from './storage.js';
 
-export function AdminTab({ travelers, onBroadcast, onToggleStatus, onAddTraveler, onAddEvent, onResetData }) {
+export function AdminTab({ travelers, docs = [], onBroadcast, onToggleStatus, onAddTraveler, onAddEvent, onResetData }) {
   const [msg, setMsg] = useState("");
   const [sent, setSent] = useState(false);
   const [nName, setNName] = useState(""); const [nUser, setNUser] = useState(""); const [nPass, setNPass] = useState("");
@@ -118,8 +118,9 @@ export function AdminTab({ travelers, onBroadcast, onToggleStatus, onAddTraveler
             {eType === "flight" ? (
               <select value={eDoc} onChange={(e) => setEDoc(e.target.value)} style={input} className="border rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none appearance-none">
                 <option value="" style={{ background: C.surfaceHigh }}>Keine Bordkarte</option>
-                <option value="d2" style={{ background: C.surfaceHigh }}>Bordkarte Hinflug IM882</option>
-                <option value="d3" style={{ background: C.surfaceHigh }}>Bordkarte Rückflug IM883</option>
+                {docs.filter((d) => d.type === "ticket").map((d) => (
+                  <option key={d.id} value={d.id} style={{ background: C.surfaceHigh }}>{d.title}{d.subtitle ? ` — ${d.subtitle}` : ""}</option>
+                ))}
               </select>
             ) : <div />}
           </div>
