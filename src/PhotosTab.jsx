@@ -73,7 +73,7 @@ export function SharePhotoModal({ user, onClose, onShare }) {
 
   const input = { background: `${C.charcoal}33`, borderColor: `${C.charcoal}80` };
   return (
-    <div className="absolute inset-0 z-[95] bg-black/85 flex items-center justify-center p-4" onClick={() => { stopCam(); onClose(); }}>
+    <div className="fixed inset-0 z-[95] bg-black/85 flex items-center justify-center p-4" onClick={() => { stopCam(); onClose(); }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: C.surface, borderColor: `${C.charcoal}4d` }} className="border rounded-2xl max-w-md w-full overflow-hidden fadeup max-h-[88vh] flex flex-col">
         <div style={{ background: C.charcoal }} className="px-5 py-3.5 flex justify-between items-center shrink-0">
           <span className="font-black text-base uppercase tracking-wide text-white">Foto teilen</span>

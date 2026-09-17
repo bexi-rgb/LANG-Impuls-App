@@ -291,7 +291,7 @@ export const AMENITY_ICONS = {
 
 export function HotelDetailView({ hotel, personal, onClose }) {
   return (
-    <div className="absolute inset-0 z-40 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.8)", backdropFilter: "blur(4px)" }} onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.8)", backdropFilter: "blur(4px)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: C.surfaceHigh, borderColor: `${C.charcoal}66` }}
         className="w-full max-w-md border-t rounded-t-3xl fadeup max-h-[92%] overflow-y-auto">
 
@@ -786,7 +786,7 @@ export function HomeTab({ setTab, broadcasts, messages, travelers = [], schedule
 
       {/* Add-Tile Menü */}
       {addOpen && (
-        <div className="absolute inset-0 z-40 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }} onClick={() => setAddOpen(false)}>
+        <div className="fixed inset-0 z-40 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }} onClick={() => setAddOpen(false)}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: C.surfaceHigh, borderColor: `${C.charcoal}66` }}
             className="w-full max-w-md border-t rounded-t-3xl p-5 space-y-4 fadeup">
             <div className="flex items-center justify-between">

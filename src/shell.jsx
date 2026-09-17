@@ -284,7 +284,7 @@ export function HomeSectionEditModal({ title, fields, initial, onSave, onClose }
   const input = { background: `${C.charcoal}4d`, borderColor: `${C.charcoal}80` };
 
   return (
-    <div className="absolute inset-0 z-40 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }} onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: C.surfaceHigh, borderColor: `${C.charcoal}66` }}
         className="w-full max-w-md border-t rounded-t-3xl p-5 space-y-4 fadeup max-h-[92%] overflow-y-auto">
         <div className="flex items-center justify-between">
@@ -332,7 +332,7 @@ export function HomeSectionEditModal({ title, fields, initial, onSave, onClose }
 export function EmojiPicker({ onSelect, onClose }) {
   const [cat, setCat] = useState(0);
   return (
-    <div className="absolute inset-0 z-40 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }} onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: C.surfaceHigh, borderColor: `${C.charcoal}66` }}
         className="w-full max-w-md border-t rounded-t-3xl p-5 space-y-3 fadeup max-h-[70%] flex flex-col">
         <div className="flex items-center justify-between shrink-0">
