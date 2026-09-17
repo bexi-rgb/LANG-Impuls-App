@@ -57,12 +57,7 @@ export function PhoneFrame({ children }) {
     return (
       <div
         className="h-[100dvh] w-full flex flex-col text-white overflow-hidden"
-        style={{
-          background: C.bg,
-          fontFamily: FONT,
-          paddingTop: "env(safe-area-inset-top)",
-          paddingBottom: "env(safe-area-inset-bottom)",
-        }}
+        style={{ background: C.bg, fontFamily: FONT }}
       >
         <div className="relative flex-1 min-h-0 flex flex-col">{children}</div>
       </div>
@@ -195,7 +190,7 @@ export function Header({ notifications, onClear, user, onLogout, onUpdateAvatar 
     e.target.value = "";
   };
   return (
-    <header style={{ background: C.gold }} className="relative shrink-0 z-30 flex justify-between items-center px-4 h-14 shadow-lg">
+    <header style={{ background: C.gold, paddingTop: "env(safe-area-inset-top)" }} className="relative shrink-0 z-30 flex justify-between items-center px-4 min-h-14 shadow-lg">
       <div className="flex items-center gap-3">
         <input type="file" accept="image/*" ref={fileRef} onChange={pickAvatar} className="hidden" />
         <button onClick={() => fileRef.current?.click()} className="active:scale-95 transition" title="Profilbild ändern" aria-label="Profilbild ändern">
@@ -247,7 +242,10 @@ export function BottomNav({ tab, setTab, isAdmin }) {
     ...(isAdmin ? [{ id: "admin", label: "Admin", icon: ShieldAlert }] : []),
   ];
   return (
-    <nav style={{ background: C.surface, borderColor: `${C.charcoal}4d` }} className="shrink-0 border-t z-30 flex justify-around py-2 pb-3">
+    <nav
+      style={{ background: C.surface, borderColor: `${C.charcoal}4d`, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+      className="shrink-0 border-t z-30 flex justify-around pt-2"
+    >
       {items.map(({ id, label, icon: Icon }) => {
         const active = tab === id;
         return (
