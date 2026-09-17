@@ -33,6 +33,14 @@ export const supabase = isSupabaseConfigured
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,  // wichtig für Magic-Link-Redirect
+        // Standardmäßig nutzt supabase-js die Web-Locks-API (navigator.locks),
+        // um Session-Refreshes über mehrere Tabs zu koordinieren. Als PWA auf
+        // iOS wird die App beim Wechsel in den Hintergrund oft mitten in
+        // diesem Lock eingefroren/beendet — der Lock wird nie freigegeben,
+        // und jeder künftige getSession()-Aufruf hängt für immer ("Lade
+        // Sitzung..." ohne Ende). Diese App läuft nicht in mehreren Tabs
+        // gleichzeitig, daher deaktivieren wir das Locking komplett.
+        lock: async (_name, _acquireTimeout, fn) => fn(),
       },
     })
   : null;
@@ -54,11 +62,21 @@ export function useSession() {
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
 
+    // Sicherheitsnetz: falls getSession()/Profil-Load aus irgendeinem Grund
+    // nie abschließt (z.B. Netzwerkaussetzer), nicht für immer auf dem
+    // "Lade Sitzung..."-Screen hängen bleiben, sondern auf Login zurückfallen.
+    const safetyTimeout = setTimeout(() => setLoading(false), 8000);
+
     // Aktuelle Session holen
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      if (!data.session) setLoading(false);
-    });
+    supabase.auth.getSession()
+      .then(({ data }) => {
+        setSession(data.session);
+        if (!data.session) setLoading(false);
+      })
+      .catch((e) => {
+        console.warn('[supabase] getSession-Fehler:', e.message);
+        setLoading(false);
+      });
 
     // Auf Änderungen hören (Login, Logout, Token-Refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_evt, sess) => {
@@ -66,7 +84,7 @@ export function useSession() {
       if (!sess) { setProfile(null); setLoading(false); }
     });
 
-    return () => subscription.unsubscribe();
+    return () => { subscription.unsubscribe(); clearTimeout(safetyTimeout); };
   }, []);
 
   // Bei jeder Session-Änderung: Profil aus travelers-Tabelle laden
@@ -74,15 +92,19 @@ export function useSession() {
     if (!session?.user?.id || !supabase) return;
     let cancelled = false;
     (async () => {
-      const { data, error } = await supabase
-        .from('travelers')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
-      if (!cancelled) {
+      try {
+        const { data, error } = await supabase
+          .from('travelers')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+        if (cancelled) return;
         if (error) console.warn('[supabase] Profil-Load-Fehler:', error.message);
         setProfile(data || null);
-        setLoading(false);
+      } catch (e) {
+        if (!cancelled) console.warn('[supabase] Profil-Load-Fehler:', e.message);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
