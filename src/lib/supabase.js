@@ -50,6 +50,19 @@ export const supabase = isSupabaseConfigured
 // ═══════════════════════════════════════════════════════════════════
 
 /**
+ * Prüft synchron, ob überhaupt eine Session im LocalStorage liegt, die es
+ * sich zu restaurieren lohnt. Ohne das würde JEDER App-Start — auch der
+ * ganz normale "ich bin ausgeloggt"-Fall — kurz den Lade-Screen zeigen.
+ */
+function hasPersistedSession() {
+  try {
+    return Object.keys(window.localStorage).some((k) => /^sb-.*-auth-token$/.test(k));
+  } catch {
+    return false;
+  }
+}
+
+/**
  * React-Hook für die aktuelle Auth-Session.
  * Rendert nach Anmeldung/Abmeldung automatisch neu.
  * Gibt zusätzlich das verknüpfte Traveler-Profil zurück.
@@ -57,15 +70,30 @@ export const supabase = isSupabaseConfigured
 export function useSession() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Nur laden, wenn tatsächlich eine gespeicherte Session existiert — sonst
+  // ist sofort klar, dass niemand angemeldet ist, und der Login-Screen
+  // erscheint ohne Umweg über "Lade Sitzung...".
+  const [loading, setLoading] = useState(() => !!supabase && hasPersistedSession());
+  // Wird gesetzt, wenn das Laden ungewöhnlich lange dauert (schlechte
+  // Verbindung o.ä.). WICHTIG: das fällt NIE automatisch auf den
+  // Login-Screen zurück — eine bestehende Session einfach zu verwerfen,
+  // nur weil das Netz gerade langsam ist, sieht für die Reisenden wie ein
+  // ungewolltes Ausloggen aus. Stattdessen zeigen wir einen Hinweis mit
+  // manuellem "Erneut versuchen".
+  const [timedOut, setTimedOut] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+
+  const retry = useCallback(() => {
+    setTimedOut(false);
+    setLoading(true);
+    setAttempt((a) => a + 1);
+  }, []);
 
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
+    setTimedOut(false);
 
-    // Sicherheitsnetz: falls getSession()/Profil-Load aus irgendeinem Grund
-    // nie abschließt (z.B. Netzwerkaussetzer), nicht für immer auf dem
-    // "Lade Sitzung..."-Screen hängen bleiben, sondern auf Login zurückfallen.
-    const safetyTimeout = setTimeout(() => setLoading(false), 8000);
+    const safetyTimeout = setTimeout(() => setTimedOut(true), 6000);
 
     // Aktuelle Session holen
     supabase.auth.getSession()
@@ -82,10 +110,11 @@ export function useSession() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_evt, sess) => {
       setSession(sess);
       if (!sess) { setProfile(null); setLoading(false); }
+      setTimedOut(false);
     });
 
     return () => { subscription.unsubscribe(); clearTimeout(safetyTimeout); };
-  }, []);
+  }, [attempt]);
 
   // Bei jeder Session-Änderung: Profil aus travelers-Tabelle laden
   useEffect(() => {
@@ -104,13 +133,13 @@ export function useSession() {
       } catch (e) {
         if (!cancelled) console.warn('[supabase] Profil-Load-Fehler:', e.message);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) { setLoading(false); setTimedOut(false); }
       }
     })();
     return () => { cancelled = true; };
   }, [session?.user?.id]);
 
-  return { session, profile, loading, user: session?.user || null };
+  return { session, profile, loading, timedOut, retry, user: session?.user || null };
 }
 
 /**
