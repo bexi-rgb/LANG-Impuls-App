@@ -5,12 +5,13 @@ import {
   Clock, X, Plus, Move, Trash2, Edit3, Wifi, Phone, Utensils, Dumbbell, Waves,
   Wine, Music, Car, Bell, Star, CalendarDays, QrCode,
   Sun, Cloud, CloudSun, CloudRain, CloudSnow, CloudFog, CloudLightning, CloudDrizzle,
-  Droplets, Wind, RefreshCw, AlertCircle,
+  Droplets, Wind, RefreshCw, AlertCircle, Coins, ArrowLeftRight,
 } from 'lucide-react';
 import { C, MONO, TYPE_META, evDate, fmtDayShort, fmtDayLong, countdownLabel } from './constants.js';
 import { Label, EditPencil, HomeSectionEditModal } from './shell.jsx';
 import { useWeather, WEATHER_LOCATIONS, describeWeather, formatFetchedAt } from './api/weather.js';
 import { useFlight, CURRENT_PROVIDER, isLiveProvider } from './api/flights.js';
+import { useExchangeRate } from './api/currency.js';
 
 export function NextUpCard({ schedule, onOpenDoc, onOpenPlan }) {
   const next = [...schedule].sort((a, b) => evDate(a) - evDate(b)).find((e) => evDate(e) > Date.now() - 30 * 60000);
@@ -528,6 +529,109 @@ export function WeatherCard({ data }) {
   );
 }
 
+export function CurrencyCard({ data }) {
+  const { data: fx, error, loading } = useExchangeRate('EUR');
+  const rate = fx?.rates?.TWD;
+
+  const [eur, setEur] = useState('100');
+  const [ntd, setNtd] = useState('');
+  const lastRate = useRef(null);
+
+  useEffect(() => {
+    if (!rate || lastRate.current === rate) return;
+    lastRate.current = rate;
+    const n = parseFloat(String(eur).replace(',', '.'));
+    setNtd(Number.isFinite(n) ? (n * rate).toFixed(2) : '');
+  }, [rate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleEurChange = (v) => {
+    setEur(v);
+    const n = parseFloat(v.replace(',', '.'));
+    setNtd(rate && Number.isFinite(n) ? (n * rate).toFixed(2) : '');
+  };
+  const handleNtdChange = (v) => {
+    setNtd(v);
+    const n = parseFloat(v.replace(',', '.'));
+    setEur(rate && Number.isFinite(n) ? (n / rate).toFixed(2) : '');
+  };
+
+  if (loading && !fx) {
+    return (
+      <div style={{ background: C.surface, borderColor: `${C.charcoal}4d` }} className="border rounded-2xl p-5 space-y-3">
+        <div className="flex items-center gap-2 opacity-70">
+          <RefreshCw className="w-4 h-4 animate-spin" style={{ color: C.gold }} />
+          <Label>{data.label || "Währungsrechner"}</Label>
+        </div>
+        <p style={{ color: C.silver }} className="text-sm">Aktueller Kurs wird geladen…</p>
+      </div>
+    );
+  }
+
+  if ((error && !fx) || !rate) {
+    return (
+      <div style={{ background: C.surface, borderColor: `${C.charcoal}4d` }} className="border rounded-2xl p-5 space-y-2">
+        <div className="flex items-center gap-2">
+          <AlertCircle className="w-4 h-4" style={{ color: "#e6a23c" }} />
+          <Label>{data.label || "Währungsrechner"}</Label>
+        </div>
+        <p style={{ color: C.silver }} className="text-xs">Wechselkurs aktuell nicht verfügbar.</p>
+        {error && <p style={{ color: C.silver, fontFamily: MONO }} className="text-[10px] opacity-60">{error}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: C.surface, borderColor: `${C.charcoal}4d` }} className="border rounded-2xl overflow-hidden">
+      <div style={{ background: `${C.charcoal}33`, borderColor: `${C.charcoal}4d` }} className="border-b px-5 py-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div style={{ background: `${C.gold}1a`, borderColor: `${C.gold}40` }} className="w-9 h-9 rounded-lg border flex items-center justify-center shrink-0">
+            <Coins className="w-4 h-4" style={{ color: C.gold }} />
+          </div>
+          <div className="min-w-0">
+            <Label>{data.label || "Währungsrechner"}</Label>
+            <p style={{ color: C.silver }} className="text-[12px] truncate">NTD ⇄ EUR</p>
+          </div>
+        </div>
+        <div style={{ background: `${C.teal}26`, color: C.teal, borderColor: `${C.teal}66` }} className="border rounded-md px-2 py-1 flex items-center gap-1.5 shrink-0">
+          <span style={{ background: C.teal }} className="w-1.5 h-1.5 rounded-full pulse" />
+          <span style={{ fontFamily: MONO, letterSpacing: "0.15em" }} className="text-[10px] font-black uppercase">Live</span>
+        </div>
+      </div>
+
+      <div className="p-5 pr-10 space-y-3">
+        <div className="space-y-1.5">
+          <label style={{ color: C.silver, letterSpacing: "0.14em" }} className="text-[10px] font-black uppercase">Euro (EUR)</label>
+          <div style={{ background: `${C.charcoal}33`, borderColor: `${C.charcoal}66` }} className="border rounded-xl flex items-center gap-2 px-3.5 py-2.5">
+            <span style={{ color: C.gold, fontFamily: MONO }} className="text-sm font-black">€</span>
+            <input value={eur} onChange={(e) => handleEurChange(e.target.value)} inputMode="decimal" placeholder="0"
+              style={{ fontFamily: MONO }} className="flex-1 min-w-0 bg-transparent text-white text-lg font-black focus:outline-none" />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-center">
+          <ArrowLeftRight className="w-4 h-4" style={{ color: C.silver }} />
+        </div>
+
+        <div className="space-y-1.5">
+          <label style={{ color: C.silver, letterSpacing: "0.14em" }} className="text-[10px] font-black uppercase">Neuer Taiwan-Dollar (NTD)</label>
+          <div style={{ background: `${C.charcoal}33`, borderColor: `${C.charcoal}66` }} className="border rounded-xl flex items-center gap-2 px-3.5 py-2.5">
+            <span style={{ color: C.gold, fontFamily: MONO }} className="text-sm font-black">NT$</span>
+            <input value={ntd} onChange={(e) => handleNtdChange(e.target.value)} inputMode="decimal" placeholder="0"
+              style={{ fontFamily: MONO }} className="flex-1 min-w-0 bg-transparent text-white text-lg font-black focus:outline-none" />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-2" style={{ borderTop: `1px solid ${C.charcoal}33` }}>
+          <span style={{ color: C.silver, fontFamily: MONO }} className="text-[10px] uppercase tracking-widest opacity-70 pt-2">
+            1 EUR ≈ {rate.toFixed(2)} NTD · Aktualisiert {formatFetchedAt(fx.fetchedAt)}
+          </span>
+          <span style={{ color: C.silver, fontFamily: MONO }} className="text-[10px] opacity-50 pt-2 shrink-0">exchangerate-api.com</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export const HOTEL_FIELDS = [
   { key: "label", label: "Bezeichnung", placeholder: "z.B. Unterkunft" },
   { key: "status", label: "Status", type: "select", options: [
@@ -557,11 +661,16 @@ export const WEATHER_FIELDS = [
   ], hint: "Live-Daten via Open-Meteo (kein API-Key nötig, ~15-Min-Cache)" },
 ];
 
+export const CURRENCY_FIELDS = [
+  { key: "label", label: "Bezeichnung", placeholder: "z.B. Währungsrechner" },
+];
+
 export function tileFieldsFor(type) {
   if (type === "flight") return FLIGHT_FIELDS;
   if (type === "hotel") return HOTEL_FIELDS;
   if (type === "info") return INFO_FIELDS;
   if (type === "weather") return WEATHER_FIELDS;
+  if (type === "currency") return CURRENCY_FIELDS;
   return [];
 }
 
@@ -570,6 +679,7 @@ export function tileEditTitle(tile) {
   if (tile.type === "hotel") return `Hotel bearbeiten (${tile.data.name || "neu"})`;
   if (tile.type === "info") return `Info bearbeiten`;
   if (tile.type === "weather") return `Wetter-Standort ändern`;
+  if (tile.type === "currency") return `Währungsrechner bearbeiten`;
   return "Bearbeiten";
 }
 
@@ -614,6 +724,7 @@ export function HomeTab({ setTab, broadcasts, messages, travelers = [], schedule
     const label = tile.type === "flight" ? tile.data.number
       : tile.type === "hotel" ? tile.data.name
       : tile.type === "weather" ? (WEATHER_LOCATIONS[tile.data.locationKey]?.name || "Wetter")
+      : tile.type === "currency" ? (tile.data.label || "Währungsrechner")
       : tile.data.headline;
     if (window.confirm(`Kachel „${label || tile.type}" wirklich entfernen?`)) onDeleteTile(tile.id);
   };
@@ -702,6 +813,7 @@ export function HomeTab({ setTab, broadcasts, messages, travelers = [], schedule
               {tile.type === "hotel" && <HotelCard hotel={tile.data} personal={personal} onOpenDetail={editMode ? null : () => setDetailTileId(tile.id)} />}
               {tile.type === "info" && <InfoTileCard data={tile.data} />}
               {tile.type === "weather" && <WeatherCard data={tile.data} />}
+              {tile.type === "currency" && <CurrencyCard data={tile.data} />}
             </div>
           );
         })}
@@ -805,6 +917,8 @@ export function HomeTab({ setTab, broadcasts, messages, travelers = [], schedule
                 onClick={() => { onAddTile("hotel"); setAddOpen(false); }} />
               <AddTileOption icon={Sun} label="Wetter" hint="Live-Wetter via Open-Meteo (kostenlos, kein Schlüssel)"
                 onClick={() => { onAddTile("weather"); setAddOpen(false); }} />
+              <AddTileOption icon={Coins} label="Währungsrechner" hint="Live-Kurs NTD ⇄ EUR (kostenlos, kein Schlüssel)"
+                onClick={() => { onAddTile("currency"); setAddOpen(false); }} />
               <AddTileOption icon={CalendarDays} label="Info-Text" hint="Freie Kachel mit Überschrift und Inhalt"
                 onClick={() => { onAddTile("info"); setAddOpen(false); }} />
             </div>

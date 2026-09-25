@@ -218,6 +218,13 @@ export const TILE_TEMPLATES = {
       locationKey: "taipei", // taipei | frankfurt | taroko | jiufen
     }),
   },
+  currency: {
+    label: "Währungsrechner",
+    icon: "coins",
+    default: () => ({
+      label: "Währungsrechner",
+    }),
+  },
 };
 
 /* Helper: countdown label + ICS export */
