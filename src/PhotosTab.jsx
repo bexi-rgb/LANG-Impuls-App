@@ -13,6 +13,8 @@ export function SharePhotoModal({ user, onClose, onShare }) {
   const [tagInput, setTagInput] = useState("");
   const [camActive, setCamActive] = useState(false);
   const [camError, setCamError] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [shareError, setShareError] = useState(null);
   const galleryRef = useRef(null);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -65,10 +67,19 @@ export function SharePhotoModal({ user, onClose, onShare }) {
   };
   const removeTag = (t) => setTags((x) => x.filter((y) => y !== t));
 
-  const share = () => {
-    if (!image) return;
-    onShare({ id: `p${Date.now()}`, image, imageFile, title: title.trim() || "Ohne Titel", author: user.name, time: "gerade eben", tags, comments: [] });
-    onClose();
+  const share = async () => {
+    if (!image || submitting) return;
+    setSubmitting(true);
+    setShareError(null);
+    try {
+      await onShare({ id: `p${Date.now()}`, image, imageFile, title: title.trim() || "Ohne Titel", author: user.name, time: "gerade eben", tags, comments: [] });
+      onClose();
+    } catch (e) {
+      console.warn('[photo] Teilen fehlgeschlagen:', e);
+      setShareError(e?.message || "Foto konnte nicht geteilt werden. Bitte erneut versuchen.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const input = { background: `${C.charcoal}33`, borderColor: `${C.charcoal}80` };
@@ -143,9 +154,11 @@ export function SharePhotoModal({ user, onClose, onShare }) {
             </div>
           </div>
 
-          <button onClick={share} disabled={!image} style={{ background: image ? C.gold : `${C.charcoal}66`, letterSpacing: "0.15em" }}
+          {shareError && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/30 rounded-xl p-3">{shareError}</p>}
+
+          <button onClick={share} disabled={!image || submitting} style={{ background: image ? C.gold : `${C.charcoal}66`, letterSpacing: "0.15em" }}
             className="w-full py-3.5 rounded-xl text-sm font-black uppercase text-white disabled:opacity-50 hover:opacity-90 active:scale-[.99] transition">
-            Im Feed teilen
+            {submitting ? "Wird geteilt …" : "Im Feed teilen"}
           </button>
         </div>
       </div>
