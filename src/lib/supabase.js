@@ -14,6 +14,9 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { loadValue, saveValue, removeValue } from '../storage.js';
+
+const CACHED_PROFILE_KEY = 'cachedProfile';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -69,11 +72,21 @@ function hasPersistedSession() {
  */
 export function useSession() {
   const [session, setSession] = useState(null);
-  const [profile, setProfile] = useState(null);
-  // Nur laden, wenn tatsächlich eine gespeicherte Session existiert — sonst
-  // ist sofort klar, dass niemand angemeldet ist, und der Login-Screen
-  // erscheint ohne Umweg über "Lade Sitzung...".
-  const [loading, setLoading] = useState(() => !!supabase && hasPersistedSession());
+  // Stale-while-revalidate: das zuletzt geladene Profil wird lokal gecacht.
+  // Bei jedem App-Start zeigen wir es sofort (kein Warten auf Supabase),
+  // während im Hintergrund still geprüft wird, ob Session/Profil noch
+  // aktuell sind. Erst wenn sich dabei etwas ändert, aktualisiert sich die
+  // Anzeige — normalerweise unbemerkt.
+  const [profile, setProfile] = useState(() => (supabase ? loadValue(CACHED_PROFILE_KEY, null) : null));
+  // Nur laden, wenn wir weder ein gecachtes Profil noch (bei Erstbesuch ohne
+  // Cache) eine gespeicherte Session haben — sonst zeigen wir sofort etwas
+  // an (gecachtes Profil oder Login), statt jedes Mal kurz "Lade Sitzung..."
+  // aufflackern zu lassen.
+  const [loading, setLoading] = useState(() => {
+    if (!supabase) return false;
+    if (loadValue(CACHED_PROFILE_KEY, null)) return false;
+    return hasPersistedSession();
+  });
   // Wird gesetzt, wenn das Laden ungewöhnlich lange dauert (schlechte
   // Verbindung o.ä.). WICHTIG: das fällt NIE automatisch auf den
   // Login-Screen zurück — eine bestehende Session einfach zu verwerfen,
@@ -109,7 +122,7 @@ export function useSession() {
     // Auf Änderungen hören (Login, Logout, Token-Refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_evt, sess) => {
       setSession(sess);
-      if (!sess) { setProfile(null); setLoading(false); }
+      if (!sess) { setProfile(null); removeValue(CACHED_PROFILE_KEY); setLoading(false); }
       setTimedOut(false);
     });
 
@@ -130,6 +143,7 @@ export function useSession() {
         if (cancelled) return;
         if (error) console.warn('[supabase] Profil-Load-Fehler:', error.message);
         setProfile(data || null);
+        if (data) saveValue(CACHED_PROFILE_KEY, data); else removeValue(CACHED_PROFILE_KEY);
       } catch (e) {
         if (!cancelled) console.warn('[supabase] Profil-Load-Fehler:', e.message);
       } finally {

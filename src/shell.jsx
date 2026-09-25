@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Wifi, Signal, Battery, Home, Calendar, CalendarDays, FileText, MessageCircle, MessageSquare,
   Camera, ImageIcon, ShieldAlert, LogOut, LogIn, User, Key, Bell, ChevronDown, ChevronRight,
-  ChevronLeft, Sparkles, Edit3, X, Users, Search, Megaphone,
+  ChevronLeft, Sparkles, Edit3, X, Users, Search,
 } from 'lucide-react';
 import { C, FONT, MONO, INITIAL_TRAVELERS } from './constants.js';
 import { EMOJI_CATEGORIES } from './emoji.js';
@@ -381,31 +381,5 @@ export function ToggleSeg({ active, onClick, icon: Icon, children }) {
       <Icon className="w-3.5 h-3.5" />
       {children}
     </button>
-  );
-}
-
-
-
-export function PushOverlay({ push, onClose }) {
-  useEffect(() => {
-    if (!push) return;
-    const t = setTimeout(onClose, 7000);
-    return () => clearTimeout(t);
-  }, [push, onClose]);
-  if (!push) return null;
-  return (
-    <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[120] w-[92%] max-w-sm slidedown">
-      <div style={{ background: "#111c", backdropFilter: "blur(14px)", borderColor: `${C.charcoal}66` }} className="border rounded-2xl p-4 shadow-2xl flex gap-3">
-        <div style={{ background: C.gold }} className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"><Megaphone className="w-5 h-5 text-white" /></div>
-        <div className="min-w-0 flex-1">
-          <div className="flex justify-between items-center">
-            <p className="text-[15px] font-black uppercase tracking-wider text-white">{push.title}</p>
-            <span style={{ color: `${C.silver}e6`, fontFamily: MONO }} className="text-[13px]">jetzt</span>
-          </div>
-          <p style={{ color: C.silver }} className="text-sm mt-0.5 leading-snug">{push.body}</p>
-        </div>
-        <button onClick={onClose} style={{ color: C.silver }} className="shrink-0 self-start" aria-label="Schließen"><X className="w-5 h-5" /></button>
-      </div>
-    </div>
   );
 }

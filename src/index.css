@@ -52,11 +52,17 @@
 
 .tickr { display: inline-flex; white-space: nowrap; animation: ticker 30s linear infinite; }
 .tickr:hover { animation-play-state: paused; }
-.fadeup { animation: fadeUp 0.3s ease both; }
-.slidedown { animation: slideDown 0.35s ease both; }
+/* Kein fill-mode "both"/"forwards": ein `transform` (auch translateY(0)) bleibt
+   sonst dauerhaft am Element hängen und macht es zum Containing Block für
+   `position: fixed`-Kinder (z.B. Modals) — die werden dann fälschlich auf die
+   Größe dieses Elements zugeschnitten statt auf den ganzen Bildschirm. Ohne
+   "both" ist nach Ablauf der Animation kein Transform mehr gesetzt; da es
+   keine animation-delay gibt, sieht man visuell keinen Unterschied. */
+.fadeup { animation: fadeUp 0.3s ease; }
+.slidedown { animation: slideDown 0.35s ease; }
 .pulse { animation: pulseDot 1.6s ease infinite; }
-.slide-in-right { animation: slideInRight 0.22s ease-out both; }
-.slide-in-left { animation: slideInLeft 0.22s ease-out both; }
+.slide-in-right { animation: slideInRight 0.22s ease-out; }
+.slide-in-left { animation: slideInLeft 0.22s ease-out; }
 
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: #1a1a19; }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  PhoneFrame, Header, BottomNav, LoginView, PushOverlay,
+  PhoneFrame, Header, BottomNav, LoginView,
 } from './shell.jsx';
 import {
   INITIAL_TRAVELERS, INITIAL_MESSAGES, INITIAL_PHOTOS, INITIAL_SCHEDULE,
@@ -66,7 +66,7 @@ export default function App() {
   // bei Supabase zusätzlich echte Admin-Broadcasts aus der DB (geräteübergreifend).
   const [notificationsLocal, setNotificationsLocal] = usePersistentState('notifications', DEFAULT_NOTIFICATIONS);
   const [notificationsClearedAt, setNotificationsClearedAt] = usePersistentState('notificationsClearedAt', 0);
-  const { data: broadcastNotifications } = useCollection('notifications', { orderBy: 'created_at', ascending: false });
+  const { data: broadcastNotifications, loading: broadcastsLoading } = useCollection('notifications', { orderBy: 'created_at', ascending: false });
 
   const [scheduleLocal, setScheduleLocal] = usePersistentState('schedule', INITIAL_SCHEDULE);
   const { data: scheduleRemote } = useCollection('schedule', { orderBy: 'date' });
@@ -94,7 +94,6 @@ export default function App() {
   const [tab, setTab] = useState("home");
   const [typing, setTyping] = useState(false);
   const [broadcasts, setBroadcasts] = useState([]);
-  const [push, setPush] = useState(null);
   const [docFocus, setDocFocus] = useState(null);
 
   // ── User-Session ────────────────────────────────────────────────
@@ -168,16 +167,18 @@ export default function App() {
     }
     setBroadcasts((b) => [text, ...b]);
     setNotifications((n) => [`BROADCAST: ${text}`, ...n]);
-    setPush({ id: `${Date.now()}`, title: "IMPULS Reise-Update", body: text });
   };
 
-  // Neue Broadcasts (von irgendeinem Admin-Client eingefügt) live an ALLE
-  // verbundenen Clients pushen: Toast + Ticker-Flash. Beim ersten Laden nur
-  // merken, welche Broadcasts schon existieren — sonst würde jeder Reload
-  // alte Broadcasts erneut als Push anzeigen.
+  // Neue Broadcasts (von irgendeinem Admin-Client eingefügt) live in den
+  // Ticker aufnehmen. Die Basis ("bereits bekannte" IDs) darf erst erfasst
+  // werden, NACHDEM die erste echte Ladung durchgelaufen ist (broadcastsLoading
+  // === false) — sonst wird die Basis fälschlich anhand der noch leeren
+  // Platzhalterliste gesetzt, und sobald die echten Daten eintreffen, gelten
+  // ALLE bisherigen Broadcasts als "neu" und werden bei jedem App-Start
+  // erneut in den Ticker geschoben.
   const seenBroadcastIds = useRef(null);
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
+    if (!isSupabaseConfigured || broadcastsLoading) return;
     if (seenBroadcastIds.current === null) {
       seenBroadcastIds.current = new Set(broadcastNotifications.map((n) => n.id));
       return;
@@ -187,9 +188,8 @@ export default function App() {
       seenBroadcastIds.current.add(n.id);
       const text = n.text.replace(/^BROADCAST: /, '');
       setBroadcasts((b) => [text, ...b]);
-      setPush({ id: n.id, title: "IMPULS Reise-Update", body: text });
     });
-  }, [broadcastNotifications]);
+  }, [broadcastNotifications, broadcastsLoading]);
 
   const computeToggledReactions = (m, emoji) => {
     const reactions = { ...(m.reactions || {}) };
@@ -415,7 +415,6 @@ export default function App() {
   return (
     <PhoneFrame>
       <div style={{ background: C.bg }} className="relative h-full flex flex-col text-white">
-        <PushOverlay push={push} onClose={() => setPush(null)} />
         <Header notifications={notifications} onClear={clearNotifications} user={user} onLogout={logout} onUpdateAvatar={updateAvatar} />
         <main className="flex-1 min-h-0 overflow-y-auto">
           {tab === "home" && <HomeTab setTab={setTab} broadcasts={broadcasts} messages={messages} travelers={travelers} schedule={schedule} onOpenDoc={openDoc} tiles={homeTiles} ticker={ticker} isAdmin={user.role === "admin"} onUpdateTile={updateTile} onReorderTiles={reorderTiles} onDeleteTile={deleteTile} onAddTile={addTile} onUpdateTicker={updateTicker} user={user} />}
