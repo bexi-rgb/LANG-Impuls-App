@@ -76,7 +76,7 @@ export async function disablePush() {
 }
 
 /** Versand anstoßen (fire-and-forget) — Server liest Inhalt + Empfänger selbst aus der DB. */
-export async function triggerPush(kind, id) {
+export async function triggerPush(kind, id, extra = {}) {
   if (!isSupabaseConfigured || !id) return;
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -85,7 +85,7 @@ export async function triggerPush(kind, id) {
       method: 'POST',
       keepalive: true,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ kind, id }),
+      body: JSON.stringify({ kind, id, ...extra }),
     });
   } catch (e) {
     console.warn('[push] trigger', e.message);

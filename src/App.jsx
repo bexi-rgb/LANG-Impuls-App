@@ -41,8 +41,11 @@ export default function App() {
     : travelersLocal;
   const [messagesLocal, setMessagesLocal] = usePersistentState('messages', INITIAL_MESSAGES);
   const { data: messagesRemote } = useCollection('messages', { orderBy: 'created_at' });
+  // Eigene, noch nicht vom Server bestätigte Reaktionen (optimistisch)
+  const [reactionOverrides, setReactionOverrides] = useState({});
+  useEffect(() => { setReactionOverrides({}); }, [messagesRemote]);
   const messages = isSupabaseConfigured
-    ? messagesRemote.map((m) => ({ id: m.id, channel: m.channel, senderId: m.sender_id, text: m.text, status: m.status, time: shortTime(m.created_at), reactions: m.reactions || {} }))
+    ? messagesRemote.map((m) => ({ id: m.id, channel: m.channel, senderId: m.sender_id, text: m.text, status: m.status, time: shortTime(m.created_at), reactions: reactionOverrides[m.id] || m.reactions || {} }))
     : messagesLocal;
 
   const [photosLocal, setPhotosLocal] = usePersistentState('photos', INITIAL_PHOTOS);
@@ -252,7 +255,17 @@ export default function App() {
     if (isSupabaseConfigured) {
       const m = messages.find((x) => x.id === messageId);
       if (!m) return;
-      updateRow('messages', messageId, { reactions: computeToggledReactions(m, emoji) }).catch((e) => console.warn('[reaction]', e.message));
+      const next = computeToggledReactions(m, emoji);
+      const added = (next[emoji] || []).includes(user.id);
+      // Sofort anzeigen, nicht erst nach dem Realtime-Reload
+      setReactionOverrides((o) => ({ ...o, [messageId]: next }));
+      updateRow('messages', messageId, { reactions: next })
+        .then(() => { if (added) triggerPush('reaction', messageId, { emoji }); })
+        .catch((e) => {
+          console.warn('[reaction]', e.message);
+          setReactionOverrides(({ [messageId]: _, ...rest }) => rest);
+          setNotifications((n) => [`Reaktion konnte nicht gespeichert werden: ${e.message}`, ...n]);
+        });
       return;
     }
     setMessagesLocal((ms) => ms.map((m) => (m.id === messageId ? { ...m, reactions: computeToggledReactions(m, emoji) } : m)));

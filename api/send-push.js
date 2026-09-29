@@ -47,8 +47,8 @@ export default async function handler(req, res) {
   }
   const callerId = userData.user.id;
 
-  const { kind, id } = req.body || {};
-  if (!id || (kind !== 'message' && kind !== 'broadcast')) {
+  const { kind, id, emoji } = req.body || {};
+  if (!id || !['message', 'broadcast', 'reaction'].includes(kind)) {
     res.status(400).json({ error: 'kind und id sind erforderlich.' });
     return;
   }
@@ -81,6 +81,20 @@ export default async function handler(req, res) {
         ? travelers.filter((t) => t.role === 'admin' && t.id !== callerId).map((t) => t.id)
         : [travelerId];
       payload = { title: senderName, body: truncate(msg.text, 180), tab: 'chat', channel: msg.channel, tag: msg.channel };
+    }
+  } else if (kind === 'reaction') {
+    const { data: msg, error } = await admin.from('messages').select('channel, sender_id, text, reactions').eq('id', id).single();
+    if (error || !msg) { res.status(404).json({ error: 'Nachricht nicht gefunden.' }); return; }
+    // Nur echte, gespeicherte Reaktionen des Aufrufers melden
+    if (!emoji || !(msg.reactions?.[emoji] || []).includes(callerId)) { res.status(403).json({ error: 'Reaktion nicht gefunden.' }); return; }
+    if (msg.sender_id !== callerId) {
+      const firstName = (caller?.name || 'Jemand').split(' ')[0];
+      recipients = [msg.sender_id];
+      payload = {
+        title: `${firstName} hat reagiert ${emoji}`,
+        body: `${firstName} hat mit ${emoji} auf Ihre Nachricht reagiert: „${truncate(msg.text, 120)}“`,
+        tab: 'chat', channel: msg.channel, tag: `reaction-${id}`,
+      };
     }
   } else {
     if (caller?.role !== 'admin') { res.status(403).json({ error: 'Nur Admins.' }); return; }
