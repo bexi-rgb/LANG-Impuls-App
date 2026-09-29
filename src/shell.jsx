@@ -55,11 +55,13 @@ export function PhoneFrame({ children }) {
   // Mobile: kein Frame — App füllt den Bildschirm wie eine echte App.
   // fixed + inset-0 statt 100dvh: iOS meldet als Home-Screen-App teils eine
   // um die Statusleiste zu kurze dvh-Höhe → Lücke unter der Bottom-Nav.
+  // iOS 26 kürzt sogar inset-0 → --app-h (echte Bildschirmhöhe, gesetzt in
+  // index.html) überschreibt die Höhe im Standalone-Modus.
   if (!isDesktop) {
     return (
       <div
-        className="fixed inset-0 flex flex-col text-white overflow-hidden"
-        style={{ background: C.bg, fontFamily: FONT }}
+        className="fixed top-0 left-0 right-0 flex flex-col text-white overflow-hidden"
+        style={{ background: C.bg, fontFamily: FONT, height: "var(--app-h, 100%)" }}
       >
         <div className="relative flex-1 min-h-0 flex flex-col">{children}</div>
       </div>

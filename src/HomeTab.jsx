@@ -533,15 +533,15 @@ export function CurrencyCard({ data }) {
   const { data: fx, error, loading } = useExchangeRate('EUR');
   const rate = fx?.rates?.TWD;
 
-  const [eur, setEur] = useState('100');
-  const [ntd, setNtd] = useState('');
+  const [eur, setEur] = useState('');
+  const [ntd, setNtd] = useState('100');
   const lastRate = useRef(null);
 
   useEffect(() => {
     if (!rate || lastRate.current === rate) return;
     lastRate.current = rate;
-    const n = parseFloat(String(eur).replace(',', '.'));
-    setNtd(Number.isFinite(n) ? (n * rate).toFixed(2) : '');
+    const n = parseFloat(String(ntd).replace(',', '.'));
+    setEur(Number.isFinite(n) ? (n / rate).toFixed(2) : '');
   }, [rate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleEurChange = (v) => {

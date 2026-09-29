@@ -14,6 +14,23 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Raleway:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
     <title>IMPULS Reise-Concierge · Taiwan 2026</title>
+    <script>
+      // iOS 26 Home-Screen-App: Viewport (auch fixed/inset-0, 100dvh) ist um die
+      // Statusleiste zu kurz → Lücke unter der Bottom-Nav. Im Standalone-Modus
+      // deckt die App den ganzen Bildschirm ab, also echte Bildschirmhöhe nehmen.
+      (function () {
+        var standalone = navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+        if (!standalone) return;
+        function setH() {
+          var portrait = window.innerHeight >= window.innerWidth;
+          var screenH = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
+          document.documentElement.style.setProperty('--app-h', Math.max(screenH, window.innerHeight) + 'px');
+        }
+        setH();
+        window.addEventListener('resize', setH);
+        window.addEventListener('orientationchange', setH);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
