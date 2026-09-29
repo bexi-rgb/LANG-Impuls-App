@@ -247,9 +247,18 @@ export function useCollection(table, opts = {}) {
       .on('postgres_changes', { event: '*', schema: 'public', table }, () => load())
       .subscribe();
 
+    // Nach Login/Logout neu laden: die Tabellen sind per RLS nur für
+    // angemeldete Nutzer lesbar. Ohne das bleiben Listen, die schon auf dem
+    // Login-Screen (noch ohne Session) geladen wurden, nach dem Login leer.
+    // setTimeout, weil Supabase-Aufrufe direkt im Auth-Callback blockieren.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((evt) => {
+      if (evt === 'SIGNED_IN' || evt === 'SIGNED_OUT') setTimeout(load, 0);
+    });
+
     return () => {
       cancelled = true;
       supabase.removeChannel(channel);
+      subscription.unsubscribe();
     };
   }, [table]);
 

@@ -52,11 +52,13 @@ export function PhoneFrame({ children }) {
     return () => window.removeEventListener('resize', fit);
   }, [isDesktop]);
 
-  // Mobile: kein Frame — App füllt den Bildschirm wie eine echte App
+  // Mobile: kein Frame — App füllt den Bildschirm wie eine echte App.
+  // fixed + inset-0 statt 100dvh: iOS meldet als Home-Screen-App teils eine
+  // um die Statusleiste zu kurze dvh-Höhe → Lücke unter der Bottom-Nav.
   if (!isDesktop) {
     return (
       <div
-        className="h-[100dvh] w-full flex flex-col text-white overflow-hidden"
+        className="fixed inset-0 flex flex-col text-white overflow-hidden"
         style={{ background: C.bg, fontFamily: FONT }}
       >
         <div className="relative flex-1 min-h-0 flex flex-col">{children}</div>

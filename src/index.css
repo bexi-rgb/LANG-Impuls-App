@@ -5,7 +5,10 @@
 @layer base {
   html, body {
     height: 100%;
-    background: #1a1a1a;
+    /* = Farbe der Bottom-Nav (C.surface): falls iOS unten doch einen Streifen
+       außerhalb der App freilässt, verschmilzt er mit der Nav statt als
+       dunkle Lücke darunter zu erscheinen. */
+    background: #222222;
     color: #ffffff;
     font-family: 'Raleway', ui-sans-serif, system-ui, sans-serif;
     -webkit-tap-highlight-color: transparent;
