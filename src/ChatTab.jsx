@@ -9,7 +9,7 @@ import { QUICK_REACTIONS } from './emoji.js';
 export function ChatTab({ user, travelers, messages, onSend, typing, onToggleReaction }) {
   const isAdmin = user.role === "admin";
   const isSenderAdmin = (id) => id === "admin" || travelers.find((t) => t.id === id)?.role === "admin";
-  const [mode, setMode] = useState("direct"); // "direct" | "group"
+  const [mode, setMode] = useState("group"); // "direct" | "group" — Gruppenchat ist vorausgewählt
   const [partnerId, setPartnerId] = useState(null); // null = Chatliste (nur Admin)
   const [text, setText] = useState("");
   const [query, setQuery] = useState("");

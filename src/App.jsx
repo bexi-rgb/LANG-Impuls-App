@@ -96,6 +96,19 @@ export default function App() {
   const [broadcasts, setBroadcasts] = useState([]);
   const [docFocus, setDocFocus] = useState(null);
 
+  // iOS hält die Home-Screen-App im Hintergrund eingefroren → beim erneuten
+  // Öffnen stünde sonst noch der zuletzt genutzte Tab da. Nach längerer
+  // Abwesenheit wieder auf Start (kurze Wechsel, z.B. zur Kamera, bleiben).
+  useEffect(() => {
+    let hiddenAt = 0;
+    const onVis = () => {
+      if (document.hidden) { hiddenAt = Date.now(); return; }
+      if (hiddenAt && Date.now() - hiddenAt > 5 * 60 * 1000) setTab("home");
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+
   // ── User-Session ────────────────────────────────────────────────
   // Wenn Supabase konfiguriert ist: benutze echte Auth via useSession.
   // Sonst: Fallback auf LocalStorage-Demo-Login (aktueller Modus).

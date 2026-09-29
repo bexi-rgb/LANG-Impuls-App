@@ -144,11 +144,13 @@ export function DocumentsTab({ user, docs, travelers, focusId, onAddDoc }) {
             Reise<br /><span style={{ color: C.gold }}>Dokumente</span>
           </h2>
         </div>
-        <button onClick={() => setShowUpload(true)} aria-label="Datei ablegen"
-          style={{ background: C.gold, letterSpacing: "0.15em" }}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[12px] font-black uppercase text-white active:scale-95 hover:opacity-90 transition">
-          <FolderPlus className="w-4 h-4" /> Datei ablegen
-        </button>
+        {isAdmin && (
+          <button onClick={() => setShowUpload(true)} aria-label="Datei ablegen"
+            style={{ background: C.gold, letterSpacing: "0.15em" }}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[12px] font-black uppercase text-white active:scale-95 hover:opacity-90 transition">
+            <FolderPlus className="w-4 h-4" /> Datei ablegen
+          </button>
+        )}
       </div>
 
       {/* Filter */}
@@ -247,10 +249,12 @@ export function DocumentsTab({ user, docs, travelers, focusId, onAddDoc }) {
             <p style={{ color: C.silver }} className="text-sm">
               {scoped.length === 0 ? "Noch keine Dokumente hinterlegt." : "Keine Dokumente für diesen Filter."}
             </p>
-            <button onClick={() => setShowUpload(true)} style={{ color: C.gold, letterSpacing: "0.12em" }}
-              className="text-[13px] font-black uppercase hover:underline active:scale-95 transition">
-              + Datei ablegen
-            </button>
+            {isAdmin && (
+              <button onClick={() => setShowUpload(true)} style={{ color: C.gold, letterSpacing: "0.12em" }}
+                className="text-[13px] font-black uppercase hover:underline active:scale-95 transition">
+                + Datei ablegen
+              </button>
+            )}
           </div>
         )}
       </div>
