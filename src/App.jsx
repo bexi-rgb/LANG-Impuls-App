@@ -12,6 +12,7 @@ import {
   isSupabaseConfigured, useSession, signInWithPassword, createTravelerAccount,
   insertRow, updateRow, deleteRow, useCollection, uploadFile, getPublicUrl, setConfig, signOut,
 } from './lib/supabase.js';
+import { syncPush, disablePush, triggerPush } from './lib/push.js';
 import { HomeTab } from './HomeTab.jsx';
 import { ScheduleTab } from './ScheduleTab.jsx';
 import { DocumentsTab } from './DocumentsTab.jsx';
@@ -91,7 +92,8 @@ export default function App() {
   const ticker = isSupabaseConfigured ? (tickerRows[0]?.value ?? INITIAL_TICKER) : tickerLocal;
 
   // ── Nicht-persistierter Sitzungs-State ──────────────────────────
-  const [tab, setTab] = useState("home");
+  // ?tab=chat: Tipp auf eine Push-Benachrichtigung bei geschlossener App
+  const [tab, setTab] = useState(() => new URLSearchParams(window.location.search).get('tab') || "home");
   const [typing, setTyping] = useState(false);
   const [broadcasts, setBroadcasts] = useState([]);
   const [docFocus, setDocFocus] = useState(null);
@@ -107,6 +109,15 @@ export default function App() {
     };
     document.addEventListener('visibilitychange', onVis);
     return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+
+  // Tipp auf eine Push-Benachrichtigung bei offener App → Service Worker meldet den Ziel-Tab
+  useEffect(() => {
+    if (window.location.search) window.history.replaceState(null, '', window.location.pathname);
+    if (!('serviceWorker' in navigator)) return;
+    const onMsg = (e) => { if (e.data?.type === 'open-tab' && e.data.tab) setTab(e.data.tab); };
+    navigator.serviceWorker.addEventListener('message', onMsg);
+    return () => navigator.serviceWorker.removeEventListener('message', onMsg);
   }, []);
 
   // ── User-Session ────────────────────────────────────────────────
@@ -147,8 +158,14 @@ export default function App() {
   }, [demoUser]);
 
   const login = (u) => { setDemoUser(u); setTab("home"); };
+  // Bereits erlaubte Geräte beim Start (neu) registrieren — Push-Abos können
+  // sich ändern, z.B. nach App-Update oder neuem Login.
+  useEffect(() => {
+    if (isSupabaseConfigured && user?.id) syncPush(user.id);
+  }, [user?.id]);
+
   const logout = async () => {
-    if (isSupabaseConfigured) await signOut();
+    if (isSupabaseConfigured) { await disablePush(); await signOut(); }
     else setDemoUser(null);
   };
 
@@ -156,7 +173,9 @@ export default function App() {
 
   const sendMessage = (text, channel) => {
     if (isSupabaseConfigured) {
-      insertRow('messages', { channel, sender_id: user.id, text }).catch((e) => console.warn('[message]', e.message));
+      insertRow('messages', { channel, sender_id: user.id, text })
+        .then((row) => triggerPush('message', row?.id))
+        .catch((e) => console.warn('[message]', e.message));
       // Realtime-Subscription holt die neue Nachricht bei allen Teilnehmern automatisch nach.
       return;
     }
@@ -173,7 +192,9 @@ export default function App() {
 
   const broadcast = (text) => {
     if (isSupabaseConfigured) {
-      insertRow('notifications', { text: `BROADCAST: ${text}`, recipient_id: null }).catch((e) => console.warn('[broadcast]', e.message));
+      insertRow('notifications', { text: `BROADCAST: ${text}`, recipient_id: null })
+        .then((row) => triggerPush('broadcast', row?.id))
+        .catch((e) => console.warn('[broadcast]', e.message));
       // Live-Push + Ticker-Flash laufen für ALLE Clients über den Realtime-Effekt unten,
       // nicht nur lokal — so sehen auch andere eingeloggte Reisende den Broadcast sofort.
       return;

@@ -8,6 +8,10 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
+      // Push-Benachrichtigungen: Handler liegt in public/push-sw.js
+      workbox: {
+        importScripts: ['/push-sw.js'],
+      },
       manifest: {
         name: 'IMPULS Reise-Concierge',
         short_name: 'IMPULS',

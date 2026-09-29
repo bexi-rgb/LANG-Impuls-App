@@ -8,6 +8,7 @@ import {
   Droplets, Wind, RefreshCw, AlertCircle, Coins, ArrowLeftRight,
 } from 'lucide-react';
 import { C, MONO, TYPE_META, evDate, fmtDayShort, fmtDayLong, countdownLabel } from './constants.js';
+import { PushPrompt } from './PushPrompt.jsx';
 import { Label, EditPencil, HomeSectionEditModal } from './shell.jsx';
 import { useWeather, WEATHER_LOCATIONS, describeWeather, formatFetchedAt } from './api/weather.js';
 import { useFlight, CURRENT_PROVIDER, isLiveProvider } from './api/flights.js';
@@ -731,6 +732,7 @@ export function HomeTab({ setTab, broadcasts, messages, travelers = [], schedule
 
   return (
     <div className="space-y-5 fadeup p-4 pb-6 relative">
+      {user && <PushPrompt user={user} />}
       <NextUpCard schedule={schedule} onOpenDoc={onOpenDoc} onOpenPlan={() => setTab("schedule")} />
 
       {/* Ticker-Banner */}
