@@ -10,6 +10,7 @@ import {
 import { usePersistentState, loadValue, saveValue, removeValue, clearAll } from './storage.js';
 import {
   isSupabaseConfigured, useSession, signInWithPassword, createTravelerAccount,
+  updateTravelerAccount, deleteTravelerAccount,
   insertRow, updateRow, deleteRow, useCollection, uploadFile, getPublicUrl, setConfig, signOut,
 } from './lib/supabase.js';
 import { syncPush, disablePush, triggerPush } from './lib/push.js';
@@ -428,6 +429,24 @@ export default function App() {
     }
   };
 
+  // patch: { name?, email?, username?, password? } — nur geänderte Felder
+  const editTraveler = async (id, patch) => {
+    if (isSupabaseConfigured) {
+      await updateTravelerAccount(id, { name: patch.name, email: patch.email, password: patch.password });
+      // Realtime-Subscription auf 'travelers' holt die Änderung automatisch nach.
+    } else {
+      setTravelersLocal((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+    }
+  };
+
+  const removeTraveler = async (id) => {
+    if (isSupabaseConfigured) {
+      await deleteTravelerAccount(id);
+    } else {
+      setTravelersLocal((ts) => ts.filter((t) => t.id !== id));
+    }
+  };
+
   const resetPreviewData = () => {
     if (!window.confirm("Alle lokal gespeicherten Änderungen zurücksetzen? Termine, Dokumente, Nachrichten, Fotos, Kachel-Reihenfolge und angelegte Reisende gehen verloren.")) return;
     clearAll();
@@ -455,7 +474,7 @@ export default function App() {
           {tab === "documents" && <DocumentsTab user={user} docs={docs} travelers={travelers} focusId={docFocus} onAddDoc={addDoc} />}
           {tab === "chat" && <ChatTab user={user} focus={chatFocus} travelers={travelers} messages={messages} onSend={sendMessage} typing={typing} onToggleReaction={toggleReaction} />}
           {tab === "photos" && <PhotosTab photos={photos} user={user} onComment={addComment} onShare={sharePhoto} />}
-          {tab === "admin" && user.role === "admin" && <AdminTab travelers={travelers} docs={docs} onBroadcast={broadcast} onToggleStatus={toggleTravelerStatus} onAddTraveler={addTraveler} onAddEvent={addEvent} onResetData={resetPreviewData} />}
+          {tab === "admin" && user.role === "admin" && <AdminTab travelers={travelers} docs={docs} onBroadcast={broadcast} onToggleStatus={toggleTravelerStatus} onAddTraveler={addTraveler} onEditTraveler={editTraveler} onDeleteTraveler={removeTraveler} onAddEvent={addEvent} onResetData={resetPreviewData} />}
         </main>
         <BottomNav tab={tab} setTab={setTab} isAdmin={user.role === "admin"} />
       </div>

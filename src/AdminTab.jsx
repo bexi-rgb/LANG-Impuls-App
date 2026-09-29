@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import {
   ShieldAlert, Users, Megaphone, UserPlus, Calendar, CalendarDays, CheckCircle2, X, Plus, MapPin,
-  Database, Trash2, User, Mail, Lock, Smartphone,
+  Database, Trash2, User, Mail, Lock, Smartphone, Pencil,
 } from 'lucide-react';
 import { C, MONO, TRIP_DAYS, fmtDayShort } from './constants.js';
 import { Label, Avatar } from './shell.jsx';
 import { storageSize, formatBytes } from './storage.js';
 
-export function AdminTab({ travelers, docs = [], onBroadcast, onToggleStatus, onAddTraveler, onAddEvent, onResetData }) {
+export function AdminTab({ travelers, docs = [], onBroadcast, onToggleStatus, onAddTraveler, onEditTraveler, onDeleteTraveler, onAddEvent, onResetData }) {
   const [msg, setMsg] = useState("");
   const [sent, setSent] = useState(false);
   const [nName, setNName] = useState(""); const [nUser, setNUser] = useState(""); const [nPass, setNPass] = useState("");
@@ -134,24 +134,108 @@ export function AdminTab({ travelers, docs = [], onBroadcast, onToggleStatus, on
         <div className="flex items-center gap-2"><Users className="w-5 h-5" style={{ color: C.gold }} /><Label>Reisende ({travelers.length})</Label></div>
         <div className="space-y-2">
           {travelers.map((t) => (
-            <div key={t.id} style={{ background: `${C.charcoal}26` }} className="rounded-xl p-3 flex items-center gap-3">
-              <Avatar user={t} size={34} />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-extrabold truncate">{t.name}</p>
-                <p style={{ color: C.silver, fontFamily: MONO }} className="text-[13px] truncate">{t.username ? `@${t.username}` : t.email} • {t.roomType}</p>
-              </div>
-              <button onClick={() => onToggleStatus(t.id)}
-                style={{ background: t.status === "ready" ? `${C.teal}26` : `${C.gold}26`, color: t.status === "ready" ? C.teal : C.gold, fontFamily: MONO }}
-                className="text-[13px] font-black uppercase tracking-wider px-3 py-1.5 rounded-lg active:scale-95 transition">
-                {t.status === "ready" ? "✓ Bereit" : "Unterlagen fehlen"}
-              </button>
-            </div>
+            <TravelerRow key={t.id} t={t} onToggleStatus={onToggleStatus} onEdit={onEditTraveler} onDelete={onDeleteTraveler} />
           ))}
           {travelers.length === 0 && <p style={{ color: C.silver }} className="text-sm text-center py-6">Noch keine Reisenden angelegt.</p>}
         </div>
       </div>
 
       <StoragePanel onResetData={onResetData} />
+    </div>
+  );
+}
+
+// Login-Name, wie er im Formular angezeigt wird: "elena@impuls.com" → "elena"
+function loginName(t) {
+  if (t.username) return t.username;
+  return (t.email || "").endsWith("@impuls.com") ? t.email.slice(0, -"@impuls.com".length) : (t.email || "");
+}
+
+function TravelerRow({ t, onToggleStatus, onEdit, onDelete }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(t.name);
+  const [login, setLogin] = useState(loginName(t));
+  const [pass, setPass] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const canManage = t.role !== "admin" && onEdit && onDelete;
+  const input = { background: `${C.charcoal}4d`, borderColor: `${C.charcoal}80` };
+
+  const startEdit = () => { setName(t.name); setLogin(loginName(t)); setPass(""); setErr(null); setEditing(true); };
+
+  const save = async () => {
+    if (!name.trim() || !login.trim()) { setErr("Name und Benutzername dürfen nicht leer sein."); return; }
+    if (pass && pass.length < 6) { setErr("Passwort muss mindestens 6 Zeichen haben."); return; }
+    const patch = {};
+    if (name.trim() !== t.name) patch.name = name.trim();
+    if (login.trim() !== loginName(t)) {
+      const v = login.trim().toLowerCase();
+      patch.email = v.includes("@") ? v : `${v.replace(/\s+/g, ".")}@impuls.com`;
+      if (t.username) patch.username = login.trim();
+    }
+    if (pass) patch.password = pass;
+    if (!Object.keys(patch).length) { setEditing(false); return; }
+    setBusy(true); setErr(null);
+    try {
+      await onEdit(t.id, patch);
+      setEditing(false);
+    } catch (e) {
+      setErr(e.message || "Änderung konnte nicht gespeichert werden.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async () => {
+    if (!window.confirm(`${t.name} wirklich löschen? Das Konto und alle Chat-Nachrichten, Fotos und persönlichen Dokumente dieser Person werden entfernt. Das kann nicht rückgängig gemacht werden.`)) return;
+    setBusy(true); setErr(null);
+    try {
+      await onDelete(t.id);
+    } catch (e) {
+      setErr(e.message || "Reisender konnte nicht gelöscht werden.");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ background: `${C.charcoal}26` }} className="rounded-xl p-3 space-y-3">
+      <div className="flex items-center gap-3">
+        <Avatar user={t} size={34} />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-extrabold truncate">{t.name}</p>
+          <p style={{ color: C.silver, fontFamily: MONO }} className="text-[13px] truncate">{t.username ? `@${t.username}` : t.email} • {t.roomType}</p>
+        </div>
+        <button onClick={() => onToggleStatus(t.id)}
+          style={{ background: t.status === "ready" ? `${C.teal}26` : `${C.gold}26`, color: t.status === "ready" ? C.teal : C.gold, fontFamily: MONO }}
+          className="text-[13px] font-black uppercase tracking-wider px-3 py-1.5 rounded-lg active:scale-95 transition">
+          {t.status === "ready" ? "✓ Bereit" : "Unterlagen fehlen"}
+        </button>
+        {canManage && !editing && (
+          <>
+            <button onClick={startEdit} disabled={busy} aria-label={`${t.name} bearbeiten`} style={{ color: C.silver }}
+              className="p-1.5 rounded-lg hover:bg-white/10 active:scale-95 transition disabled:opacity-50"><Pencil className="w-4 h-4" /></button>
+            <button onClick={remove} disabled={busy} aria-label={`${t.name} löschen`} style={{ color: "#e57373" }}
+              className="p-1.5 rounded-lg hover:bg-red-500/10 active:scale-95 transition disabled:opacity-50"><Trash2 className="w-4 h-4" /></button>
+          </>
+        )}
+      </div>
+      {err && <div className="p-2.5 bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-xl">{err}</div>}
+      {editing && (
+        <div className="space-y-2.5 fadeup">
+          <div className="relative"><User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 opacity-40" />
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Vollständiger Name" style={input} className="w-full border rounded-xl pl-8 pr-3 py-2.5 text-sm text-white placeholder:opacity-70 focus:outline-none" /></div>
+          <div className="relative"><Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 opacity-40" />
+            <input value={login} onChange={(e) => setLogin(e.target.value)} placeholder="Benutzername (Login)" style={input} className="w-full border rounded-xl pl-8 pr-3 py-2.5 text-sm text-white placeholder:opacity-70 focus:outline-none" /></div>
+          <div className="relative"><Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 opacity-40" />
+            <input value={pass} onChange={(e) => setPass(e.target.value)} placeholder="Neues Passwort (leer = unverändert)" type="password" style={input} className="w-full border rounded-xl pl-8 pr-3 py-2.5 text-sm text-white placeholder:opacity-70 focus:outline-none" /></div>
+          <div className="grid grid-cols-2 gap-2.5">
+            <button type="button" onClick={() => setEditing(false)} disabled={busy} style={{ background: `${C.charcoal}66`, letterSpacing: "0.15em" }}
+              className="py-2.5 rounded-xl text-[13px] font-black uppercase text-white hover:opacity-90 active:scale-[.99] transition disabled:opacity-50">Abbrechen</button>
+            <button type="button" onClick={save} disabled={busy} style={{ background: C.teal, letterSpacing: "0.15em" }}
+              className="py-2.5 rounded-xl text-[13px] font-black uppercase text-white hover:opacity-90 active:scale-[.99] transition disabled:opacity-50">{busy ? "Speichert..." : "Speichern"}</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

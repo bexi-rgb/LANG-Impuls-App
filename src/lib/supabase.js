@@ -193,6 +193,27 @@ export async function createTravelerAccount({ name, email, password }) {
   return body;
 }
 
+/**
+ * Bearbeitet (PATCH: name/email/password) oder löscht (DELETE) einen
+ * Reisenden-Account über api/manage-traveler (nur für Admins).
+ */
+async function manageTraveler(method, payload) {
+  if (!supabase) throw new Error('Supabase nicht konfiguriert');
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Nicht angemeldet');
+  const res = await fetch('/api/manage-traveler', {
+    method,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify(payload),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || 'Aktion fehlgeschlagen.');
+  return body;
+}
+
+export const updateTravelerAccount = (id, patch) => manageTraveler('PATCH', { id, ...patch });
+export const deleteTravelerAccount = (id) => manageTraveler('DELETE', { id });
+
 export async function signOut() {
   if (!supabase) return;
   await supabase.auth.signOut();
