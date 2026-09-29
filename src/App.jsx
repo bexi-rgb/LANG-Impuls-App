@@ -99,7 +99,7 @@ export default function App() {
   // ── User-Session ────────────────────────────────────────────────
   // Wenn Supabase konfiguriert ist: benutze echte Auth via useSession.
   // Sonst: Fallback auf LocalStorage-Demo-Login (aktueller Modus).
-  const { profile, loading: authLoading, timedOut: authTimedOut, retry: retrySession } = useSession();
+  const { profile } = useSession();
   const [demoUser, setDemoUser] = useState(() => {
     if (isSupabaseConfigured) return null;
     const stored = loadValue('user', null);
@@ -375,31 +375,6 @@ export default function App() {
     clearAll();
     window.location.reload();
   };
-
-  // Warten bis Auth-State geladen ist (Flash of Login vermeiden)
-  if (isSupabaseConfigured && authLoading) {
-    return (
-      <PhoneFrame>
-        <div style={{ background: C.bg }} className="h-full flex flex-col items-center justify-center gap-4 px-10 text-center">
-          <p style={{ color: C.silver }} className="text-sm">Lade Sitzung...</p>
-          {authTimedOut && (
-            <>
-              <p style={{ color: C.silver }} className="text-xs opacity-70">
-                Das dauert länger als gewöhnlich. Prüfe deine Internetverbindung.
-              </p>
-              <button
-                onClick={retrySession}
-                style={{ background: C.gold, color: C.bg }}
-                className="px-4 py-2 rounded-full text-sm font-semibold"
-              >
-                Erneut versuchen
-              </button>
-            </>
-          )}
-        </div>
-      </PhoneFrame>
-    );
-  }
 
   if (!user) return (
     <PhoneFrame>

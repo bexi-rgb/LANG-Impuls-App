@@ -13,7 +13,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { loadValue, saveValue, removeValue } from '../storage.js';
 
 const CACHED_PROFILE_KEY = 'cachedProfile';
@@ -53,16 +53,34 @@ export const supabase = isSupabaseConfigured
 // ═══════════════════════════════════════════════════════════════════
 
 /**
- * Prüft synchron, ob überhaupt eine Session im LocalStorage liegt, die es
- * sich zu restaurieren lohnt. Ohne das würde JEDER App-Start — auch der
- * ganz normale "ich bin ausgeloggt"-Fall — kurz den Lade-Screen zeigen.
+ * Liest synchron den User aus der von supabase-js im LocalStorage
+ * gespeicherten Session (oder null, wenn niemand angemeldet ist).
  */
-function hasPersistedSession() {
+function readPersistedUser() {
   try {
-    return Object.keys(window.localStorage).some((k) => /^sb-.*-auth-token$/.test(k));
+    const key = Object.keys(window.localStorage).find((k) => /^sb-.*-auth-token$/.test(k));
+    if (!key) return null;
+    return JSON.parse(window.localStorage.getItem(key))?.user || null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+/**
+ * Vorläufiges Profil aus der lokal gespeicherten Session (ohne Netzwerk).
+ * Greift nur, wenn noch kein Profil gecacht ist (z.B. erster Start nach
+ * einem Update) — so erscheint die App sofort statt eines Lade-Screens,
+ * der beim Token-Refresh über schlechtes Netz bis zu 30 s hängen kann.
+ */
+function provisionalProfile() {
+  const u = readPersistedUser();
+  if (!u?.id) return null;
+  return {
+    id: u.id,
+    name: u.user_metadata?.name || (u.email || '').split('@')[0],
+    role: 'traveler',
+    avatar_url: '',
+  };
 }
 
 /**
@@ -77,57 +95,31 @@ export function useSession() {
   // während im Hintergrund still geprüft wird, ob Session/Profil noch
   // aktuell sind. Erst wenn sich dabei etwas ändert, aktualisiert sich die
   // Anzeige — normalerweise unbemerkt.
-  const [profile, setProfile] = useState(() => (supabase ? loadValue(CACHED_PROFILE_KEY, null) : null));
-  // Nur laden, wenn wir weder ein gecachtes Profil noch (bei Erstbesuch ohne
-  // Cache) eine gespeicherte Session haben — sonst zeigen wir sofort etwas
-  // an (gecachtes Profil oder Login), statt jedes Mal kurz "Lade Sitzung..."
-  // aufflackern zu lassen.
-  const [loading, setLoading] = useState(() => {
-    if (!supabase) return false;
-    if (loadValue(CACHED_PROFILE_KEY, null)) return false;
-    return hasPersistedSession();
-  });
-  // Wird gesetzt, wenn das Laden ungewöhnlich lange dauert (schlechte
-  // Verbindung o.ä.). WICHTIG: das fällt NIE automatisch auf den
-  // Login-Screen zurück — eine bestehende Session einfach zu verwerfen,
-  // nur weil das Netz gerade langsam ist, sieht für die Reisenden wie ein
-  // ungewolltes Ausloggen aus. Stattdessen zeigen wir einen Hinweis mit
-  // manuellem "Erneut versuchen".
-  const [timedOut, setTimedOut] = useState(false);
-  const [attempt, setAttempt] = useState(0);
-
-  const retry = useCallback(() => {
-    setTimedOut(false);
-    setLoading(true);
-    setAttempt((a) => a + 1);
-  }, []);
+  // Fehlt der Cache, aber es liegt eine Session im LocalStorage, starten wir
+  // mit einem vorläufigen Profil daraus. Es gibt KEINEN blockierenden
+  // Lade-Screen mehr: die App erscheint immer sofort (Profil oder Login).
+  const [profile, setProfile] = useState(() => (
+    supabase ? (loadValue(CACHED_PROFILE_KEY, null) || provisionalProfile()) : null
+  ));
 
   useEffect(() => {
-    if (!supabase) { setLoading(false); return; }
-    setTimedOut(false);
+    if (!supabase) return;
 
-    const safetyTimeout = setTimeout(() => setTimedOut(true), 6000);
-
-    // Aktuelle Session holen
+    // Aktuelle Session holen (kann bei abgelaufenem Token + schlechtem Netz
+    // dauern — läuft im Hintergrund, die UI wartet nicht darauf)
     supabase.auth.getSession()
-      .then(({ data }) => {
-        setSession(data.session);
-        if (!data.session) setLoading(false);
-      })
-      .catch((e) => {
-        console.warn('[supabase] getSession-Fehler:', e.message);
-        setLoading(false);
-      });
+      .then(({ data }) => setSession(data.session))
+      .catch((e) => console.warn('[supabase] getSession-Fehler:', e.message));
 
-    // Auf Änderungen hören (Login, Logout, Token-Refresh)
+    // Auf Änderungen hören (Login, Logout, Token-Refresh). supabase-js meldet
+    // nur bei echt ungültiger Session null — Netzwerkfehler behalten die Session.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_evt, sess) => {
       setSession(sess);
-      if (!sess) { setProfile(null); removeValue(CACHED_PROFILE_KEY); setLoading(false); }
-      setTimedOut(false);
+      if (!sess) { setProfile(null); removeValue(CACHED_PROFILE_KEY); }
     });
 
-    return () => { subscription.unsubscribe(); clearTimeout(safetyTimeout); };
-  }, [attempt]);
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Bei jeder Session-Änderung: Profil aus travelers-Tabelle laden
   useEffect(() => {
@@ -141,19 +133,26 @@ export function useSession() {
           .eq('id', session.user.id)
           .single();
         if (cancelled) return;
-        if (error) console.warn('[supabase] Profil-Load-Fehler:', error.message);
-        setProfile(data || null);
-        if (data) saveValue(CACHED_PROFILE_KEY, data); else removeValue(CACHED_PROFILE_KEY);
+        if (data) {
+          setProfile(data);
+          saveValue(CACHED_PROFILE_KEY, data);
+        } else if (error?.code === 'PGRST116') {
+          // Kein travelers-Eintrag für diesen Account → wirklich kein Profil
+          setProfile(null);
+          removeValue(CACHED_PROFILE_KEY);
+        } else if (error) {
+          // Netzwerk-/Serverfehler: vorhandenes (gecachtes) Profil behalten,
+          // sonst hängt der nächste Start ohne Cache
+          console.warn('[supabase] Profil-Load-Fehler:', error.message);
+        }
       } catch (e) {
         if (!cancelled) console.warn('[supabase] Profil-Load-Fehler:', e.message);
-      } finally {
-        if (!cancelled) { setLoading(false); setTimedOut(false); }
       }
     })();
     return () => { cancelled = true; };
   }, [session?.user?.id]);
 
-  return { session, profile, loading, timedOut, retry, user: session?.user || null };
+  return { session, profile, user: session?.user || null };
 }
 
 /**
