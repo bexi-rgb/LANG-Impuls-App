@@ -16,7 +16,7 @@ self.addEventListener('push', (event) => {
       badge: '/icon-192.png',
       tag: data.tag,          // gleiche Unterhaltung → ersetzt statt stapelt
       renotify: !!data.tag,
-      data: { tab: data.tab || 'home' },
+      data: { tab: data.tab || 'home', channel: data.channel || null },
     })
   );
 });
@@ -24,13 +24,15 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const tab = event.notification.data?.tab || 'home';
+  const channel = event.notification.data?.channel || null; // z.B. 'group' | 'direct:<id>'
   event.waitUntil((async () => {
     const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const client = all[0];
     if (client) {
-      client.postMessage({ type: 'open-tab', tab });
+      client.postMessage({ type: 'open-tab', tab, channel });
       return client.focus();
     }
-    return self.clients.openWindow(`/?tab=${encodeURIComponent(tab)}`);
+    const qs = `tab=${encodeURIComponent(tab)}${channel ? `&channel=${encodeURIComponent(channel)}` : ''}`;
+    return self.clients.openWindow(`/?${qs}`);
   })());
 });

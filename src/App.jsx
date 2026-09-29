@@ -94,6 +94,13 @@ export default function App() {
   // ── Nicht-persistierter Sitzungs-State ──────────────────────────
   // ?tab=chat: Tipp auf eine Push-Benachrichtigung bei geschlossener App
   const [tab, setTab] = useState(() => new URLSearchParams(window.location.search).get('tab') || "home");
+  // Ziel-Unterhaltung aus der Push-Benachrichtigung; `at` erzwingt Neuauswahl auch bei gleichem Channel
+  const [chatFocus, setChatFocus] = useState(() => {
+    const channel = new URLSearchParams(window.location.search).get('channel');
+    return channel ? { channel, at: Date.now() } : null;
+  });
+  // Nur einmalig anwenden: wer den Chat später selbst öffnet, landet wieder im Gruppenchat
+  useEffect(() => { if (tab !== "chat") setChatFocus(null); }, [tab]);
   const [typing, setTyping] = useState(false);
   const [broadcasts, setBroadcasts] = useState([]);
   const [docFocus, setDocFocus] = useState(null);
@@ -115,7 +122,11 @@ export default function App() {
   useEffect(() => {
     if (window.location.search) window.history.replaceState(null, '', window.location.pathname);
     if (!('serviceWorker' in navigator)) return;
-    const onMsg = (e) => { if (e.data?.type === 'open-tab' && e.data.tab) setTab(e.data.tab); };
+    const onMsg = (e) => {
+      if (e.data?.type !== 'open-tab' || !e.data.tab) return;
+      if (e.data.channel) setChatFocus({ channel: e.data.channel, at: Date.now() });
+      setTab(e.data.tab);
+    };
     navigator.serviceWorker.addEventListener('message', onMsg);
     return () => navigator.serviceWorker.removeEventListener('message', onMsg);
   }, []);
@@ -429,7 +440,7 @@ export default function App() {
           {tab === "home" && <HomeTab setTab={setTab} broadcasts={broadcasts} messages={messages} travelers={travelers} schedule={schedule} onOpenDoc={openDoc} tiles={homeTiles} ticker={ticker} isAdmin={user.role === "admin"} onUpdateTile={updateTile} onReorderTiles={reorderTiles} onDeleteTile={deleteTile} onAddTile={addTile} onUpdateTicker={updateTicker} user={user} />}
           {tab === "schedule" && <ScheduleTab schedule={schedule} docs={docs} onOpenDoc={openDoc} isAdmin={user.role === "admin"} onAddEvent={addEvent} onUpdateEvent={updateEvent} onDeleteEvent={deleteEvent} />}
           {tab === "documents" && <DocumentsTab user={user} docs={docs} travelers={travelers} focusId={docFocus} onAddDoc={addDoc} />}
-          {tab === "chat" && <ChatTab user={user} travelers={travelers} messages={messages} onSend={sendMessage} typing={typing} onToggleReaction={toggleReaction} />}
+          {tab === "chat" && <ChatTab user={user} focus={chatFocus} travelers={travelers} messages={messages} onSend={sendMessage} typing={typing} onToggleReaction={toggleReaction} />}
           {tab === "photos" && <PhotosTab photos={photos} user={user} onComment={addComment} onShare={sharePhoto} />}
           {tab === "admin" && user.role === "admin" && <AdminTab travelers={travelers} docs={docs} onBroadcast={broadcast} onToggleStatus={toggleTravelerStatus} onAddTraveler={addTraveler} onAddEvent={addEvent} onResetData={resetPreviewData} />}
         </main>

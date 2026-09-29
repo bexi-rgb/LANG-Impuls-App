@@ -6,11 +6,20 @@ import { C, MONO } from './constants.js';
 import { Label, Avatar, EmojiPicker } from './shell.jsx';
 import { QUICK_REACTIONS } from './emoji.js';
 
-export function ChatTab({ user, travelers, messages, onSend, typing, onToggleReaction }) {
+export function ChatTab({ user, focus, travelers, messages, onSend, typing, onToggleReaction }) {
   const isAdmin = user.role === "admin";
   const isSenderAdmin = (id) => id === "admin" || travelers.find((t) => t.id === id)?.role === "admin";
-  const [mode, setMode] = useState("group"); // "direct" | "group" — Gruppenchat ist vorausgewählt
-  const [partnerId, setPartnerId] = useState(null); // null = Chatliste (nur Admin)
+  // Aus Push-Benachrichtigung: 'direct:<travelerId>' öffnet die Direkt-Unterhaltung
+  const focusDirectId = focus?.channel?.startsWith("direct:") ? focus.channel.slice("direct:".length) : null;
+  const [mode, setMode] = useState(focusDirectId ? "direct" : "group"); // Gruppenchat ist sonst vorausgewählt
+  const [partnerId, setPartnerId] = useState(isAdmin ? focusDirectId : null); // null = Chatliste (nur Admin)
+
+  // Neue Benachrichtigung angetippt, während der Chat schon offen ist
+  useEffect(() => {
+    if (!focus) return;
+    setMode(focusDirectId ? "direct" : "group");
+    setPartnerId(isAdmin ? focusDirectId : null);
+  }, [focus?.at]); // eslint-disable-line react-hooks/exhaustive-deps
   const [text, setText] = useState("");
   const [query, setQuery] = useState("");
   const [emojiTarget, setEmojiTarget] = useState(null); // null | "composer" | messageId (Reaktion)

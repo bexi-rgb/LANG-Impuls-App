@@ -73,14 +73,14 @@ export default async function handler(req, res) {
     const senderName = caller?.name || 'Jemand';
     if (msg.channel === 'group') {
       recipients = travelers.filter((t) => t.id !== callerId).map((t) => t.id);
-      payload = { title: `Gruppenchat · ${senderName}`, body: truncate(msg.text, 180), tab: 'chat', tag: 'group' };
+      payload = { title: `Gruppenchat · ${senderName}`, body: truncate(msg.text, 180), tab: 'chat', channel: 'group', tag: 'group' };
     } else if (msg.channel.startsWith('direct:')) {
       const travelerId = msg.channel.slice('direct:'.length);
       // Reisender schreibt → an alle Admins; Admin schreibt → an den Reisenden
       recipients = travelerId === callerId
         ? travelers.filter((t) => t.role === 'admin' && t.id !== callerId).map((t) => t.id)
         : [travelerId];
-      payload = { title: senderName, body: truncate(msg.text, 180), tab: 'chat', tag: msg.channel };
+      payload = { title: senderName, body: truncate(msg.text, 180), tab: 'chat', channel: msg.channel, tag: msg.channel };
     }
   } else {
     if (caller?.role !== 'admin') { res.status(403).json({ error: 'Nur Admins.' }); return; }
