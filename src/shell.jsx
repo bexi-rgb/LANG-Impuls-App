@@ -39,8 +39,35 @@ export function StatusBar() {
   );
 }
 
+// Bildschirmtastatur (iOS/Android): iOS verkleinert beim Öffnen nicht das Layout,
+// sondern schiebt die ganze Seite nach oben — Header & Chat-Kopf verschwinden dann
+// aus dem Bild. Wir heften die App stattdessen an den sichtbaren Bereich
+// (visualViewport) und setzen html[data-kb], damit die Bottom-Nav ausgeblendet wird.
+function useKeyboardViewport(enabled) {
+  const [vp, setVp] = useState(null); // null = Tastatur zu
+  useEffect(() => {
+    const v = window.visualViewport;
+    if (!enabled || !v) return;
+    const update = () => {
+      const open = window.innerHeight - v.height > 120;
+      document.documentElement.toggleAttribute('data-kb', open);
+      setVp(open ? { top: v.offsetTop, height: v.height } : null);
+    };
+    update();
+    v.addEventListener('resize', update);
+    v.addEventListener('scroll', update);
+    return () => {
+      v.removeEventListener('resize', update);
+      v.removeEventListener('scroll', update);
+      document.documentElement.removeAttribute('data-kb');
+    };
+  }, [enabled]);
+  return vp;
+}
+
 export function PhoneFrame({ children }) {
   const isDesktop = useIsDesktop();
+  const kbViewport = useKeyboardViewport(!isDesktop);
   const SCREEN_W = 392, SCREEN_H = 844, BEZEL = 11;
   const DEV_W = SCREEN_W + BEZEL * 2, DEV_H = SCREEN_H + BEZEL * 2;
   const [scale, setScale] = useState(1);
@@ -59,9 +86,14 @@ export function PhoneFrame({ children }) {
   // index.html) überschreibt die Höhe im Standalone-Modus.
   if (!isDesktop) {
     return (
-      <div
+      <div id="app-screen"
         className="fixed top-0 left-0 right-0 flex flex-col text-white overflow-hidden"
-        style={{ background: C.bg, fontFamily: FONT, height: "var(--app-h, 100%)" }}
+        style={{
+          background: C.bg, fontFamily: FONT,
+          ...(kbViewport
+            ? { top: kbViewport.top, height: kbViewport.height }
+            : { height: "var(--app-h, 100%)" }),
+        }}
       >
         <div className="relative flex-1 min-h-0 flex flex-col">{children}</div>
       </div>
@@ -79,7 +111,7 @@ export function PhoneFrame({ children }) {
           <div className="absolute -left-[2px] top-28 w-[3px] h-10 bg-[#2a2a28] rounded-l" />
           <div className="absolute -left-[2px] top-40 w-[3px] h-14 bg-[#2a2a28] rounded-l" />
           <div className="absolute -right-[2px] top-32 w-[3px] h-16 bg-[#2a2a28] rounded-r" />
-          <div className="absolute rounded-[2.7rem] overflow-hidden flex flex-col text-white"
+          <div id="app-screen" className="absolute rounded-[2.7rem] overflow-hidden flex flex-col text-white"
             style={{ inset: BEZEL, background: C.bg, transform: "translateZ(0)" }}>
             <StatusBar />
             <div className="relative flex-1 min-h-0 flex flex-col">{children}</div>
@@ -297,7 +329,7 @@ export function BottomNav({ tab, setTab, isAdmin }) {
   return (
     <nav
       style={{ background: C.surface, borderColor: `${C.charcoal}4d`, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
-      className="shrink-0 border-t z-30 flex justify-around pt-2"
+      className="kb-hide shrink-0 border-t z-30 flex justify-around pt-2"
     >
       {items.map(({ id, label, icon: Icon }) => {
         const active = tab === id;

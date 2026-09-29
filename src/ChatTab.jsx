@@ -25,6 +25,7 @@ export function ChatTab({ user, focus, travelers, messages, onSend, typing, onTo
   const [emojiTarget, setEmojiTarget] = useState(null); // null | "composer" | messageId (Reaktion)
   const [reactMsgId, setReactMsgId] = useState(null); // Quick-Reaction-Popover für diese Nachricht
   const endRef = useRef(null);
+  const scrollRef = useRef(null);
   const textRef = useRef(null);
   const popoverRef = useRef(null);
   const longPressTimer = useRef(null);
@@ -42,6 +43,16 @@ export function ChatTab({ user, focus, travelers, messages, onSend, typing, onTo
   useEffect(() => {
     if (!showList) endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [channelMessages.length, typing, channel, showList]);
+
+  // Tastatur öffnet/schließt → Nachrichtenbereich wird kleiner/größer: unten bleiben,
+  // damit die letzte Nachricht direkt über der Eingabezeile sichtbar ist.
+  useEffect(() => {
+    const v = window.visualViewport;
+    if (!v || showList) return;
+    const stick = () => { const el = scrollRef.current; if (el) el.scrollTop = el.scrollHeight; };
+    v.addEventListener("resize", stick);
+    return () => v.removeEventListener("resize", stick);
+  }, [showList, channel]);
 
   const send = () => {
     if (!text.trim() || !channel) return;
@@ -128,7 +139,7 @@ export function ChatTab({ user, focus, travelers, messages, onSend, typing, onTo
 
   return (
     <div className="flex flex-col fadeup h-full p-4 pb-3 relative">
-      <div style={{ background: `${C.charcoal}33`, borderColor: `${C.charcoal}66` }} className="border rounded-xl p-1 mb-3 grid grid-cols-2 gap-1">
+      <div style={{ background: `${C.charcoal}33`, borderColor: `${C.charcoal}66` }} className="kb-hide border rounded-xl p-1 mb-3 grid grid-cols-2 gap-1">
         <ToggleSeg active={mode === "direct"} onClick={() => setModeAndReset("direct")} icon={User}>
           {isAdmin ? "Direkt" : "Rebekka"}
         </ToggleSeg>
@@ -219,7 +230,7 @@ export function ChatTab({ user, focus, travelers, messages, onSend, typing, onTo
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-1 py-4 space-y-4">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto px-1 py-4 space-y-4">
             <div className="flex justify-center">
               <span style={{ background: `${C.charcoal}66`, color: C.silver, letterSpacing: "0.2em" }} className="px-4 py-1.5 rounded-full text-[13px] font-semibold uppercase">Heute</span>
             </div>

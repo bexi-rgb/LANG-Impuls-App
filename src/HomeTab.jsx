@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Megaphone, Calendar, PlaneTakeoff, MessageSquare, Map, Download, FileText,
   ArrowRight, Sparkles, ChevronRight, PlaneLanding, User, Building, Key, MapPin,
   Clock, X, Plus, Move, Trash2, Edit3, Wifi, Phone, Utensils, Dumbbell, Waves,
   Wine, Music, Car, Bell, Star, CalendarDays, QrCode,
   Sun, Cloud, CloudSun, CloudRain, CloudSnow, CloudFog, CloudLightning, CloudDrizzle,
-  Droplets, Wind, RefreshCw, AlertCircle, Coins, ArrowLeftRight,
+  Droplets, Wind, RefreshCw, AlertCircle, Coins, ArrowLeftRight, Delete, Check,
 } from 'lucide-react';
 import { C, MONO, TYPE_META, evDate, fmtDayShort, fmtDayLong, countdownLabel } from './constants.js';
 import { PushPrompt } from './PushPrompt.jsx';
@@ -556,6 +557,28 @@ export function CurrencyCard({ data }) {
     setEur(rate && Number.isFinite(n) ? (n / rate).toFixed(2) : '');
   };
 
+  // In-App-Zahlentastatur statt System-Tastatur: active = welches Feld gerade getippt wird,
+  // fresh = erste Taste ersetzt den bisherigen Wert (wie beim Taschenrechner).
+  const [active, setActive] = useState(null); // null | 'eur' | 'ntd'
+  const [fresh, setFresh] = useState(true);
+  const openPad = (field) => { setActive(field); setFresh(true); };
+  const pressKey = (key) => {
+    if (key === 'swap') { setActive((a) => (a === 'eur' ? 'ntd' : 'eur')); setFresh(true); return; }
+    const cur = active === 'eur' ? eur : ntd;
+    const base = fresh ? '' : cur;
+    let next;
+    if (key === 'back') next = cur.slice(0, -1);
+    else if (key === 'clear') next = '';
+    else if (key === '.') next = base.includes('.') ? base : (base || '0') + '.';
+    else {
+      const [int, dec] = base.split('.');
+      if (dec !== undefined ? dec.length >= 2 : int.length >= 9) next = base;
+      else next = base === '0' ? key : base + key;
+    }
+    setFresh(false);
+    (active === 'eur' ? handleEurChange : handleNtdChange)(next);
+  };
+
   if (loading && !fx) {
     return (
       <div style={{ background: C.surface, borderColor: `${C.charcoal}4d` }} className="border rounded-2xl p-5 space-y-3">
@@ -600,27 +623,13 @@ export function CurrencyCard({ data }) {
       </div>
 
       <div className="p-5 pr-10 space-y-3">
-        <div className="space-y-1.5">
-          <label style={{ color: C.silver, letterSpacing: "0.14em" }} className="text-[10px] font-black uppercase">Euro (EUR)</label>
-          <div style={{ background: `${C.charcoal}33`, borderColor: `${C.charcoal}66` }} className="border rounded-xl flex items-center gap-2 px-3.5 py-2.5">
-            <span style={{ color: C.gold, fontFamily: MONO }} className="text-sm font-black">€</span>
-            <input value={eur} onChange={(e) => handleEurChange(e.target.value)} inputMode="decimal" placeholder="0"
-              style={{ fontFamily: MONO }} className="flex-1 min-w-0 bg-transparent text-white text-lg font-black focus:outline-none" />
-          </div>
-        </div>
+        <AmountField label="Euro (EUR)" symbol="€" value={eur} active={active === 'eur'} onClick={() => openPad('eur')} />
 
         <div className="flex items-center justify-center">
           <ArrowLeftRight className="w-4 h-4" style={{ color: C.silver }} />
         </div>
 
-        <div className="space-y-1.5">
-          <label style={{ color: C.silver, letterSpacing: "0.14em" }} className="text-[10px] font-black uppercase">Neuer Taiwan-Dollar (NTD)</label>
-          <div style={{ background: `${C.charcoal}33`, borderColor: `${C.charcoal}66` }} className="border rounded-xl flex items-center gap-2 px-3.5 py-2.5">
-            <span style={{ color: C.gold, fontFamily: MONO }} className="text-sm font-black">NT$</span>
-            <input value={ntd} onChange={(e) => handleNtdChange(e.target.value)} inputMode="decimal" placeholder="0"
-              style={{ fontFamily: MONO }} className="flex-1 min-w-0 bg-transparent text-white text-lg font-black focus:outline-none" />
-          </div>
-        </div>
+        <AmountField label="Neuer Taiwan-Dollar (NTD)" symbol="NT$" value={ntd} active={active === 'ntd'} onClick={() => openPad('ntd')} />
 
         <div className="flex items-center justify-between pt-2" style={{ borderTop: `1px solid ${C.charcoal}33` }}>
           <span style={{ color: C.silver, fontFamily: MONO }} className="text-[10px] uppercase tracking-widest opacity-70 pt-2">
@@ -629,8 +638,89 @@ export function CurrencyCard({ data }) {
           <span style={{ color: C.silver, fontFamily: MONO }} className="text-[10px] opacity-50 pt-2 shrink-0">exchangerate-api.com</span>
         </div>
       </div>
+
+      {active && (
+        <CurrencyPad eur={eur} ntd={ntd} active={active} rate={rate}
+          onSelect={openPad} onKey={pressKey} onClose={() => setActive(null)} />
+      )}
     </div>
   );
+}
+
+const fmtAmount = (v) => v.replace('.', ',');
+
+function AmountField({ label, symbol, value, active, onClick, large = false }) {
+  return (
+    <div className="space-y-1.5">
+      <span style={{ color: C.silver, letterSpacing: "0.14em" }} className="text-[10px] font-black uppercase block">{label}</span>
+      <button type="button" onClick={onClick}
+        style={{ background: `${C.charcoal}33`, borderColor: active ? C.gold : `${C.charcoal}66` }}
+        className={`w-full border rounded-xl flex items-center gap-2 px-3.5 text-left transition active:scale-[.99] ${large ? "py-3" : "py-2.5"}`}>
+        <span style={{ color: C.gold, fontFamily: MONO }} className="text-sm font-black">{symbol}</span>
+        <span style={{ fontFamily: MONO, color: value ? C.white : `${C.silver}80` }}
+          className={`flex-1 min-w-0 truncate font-black flex items-center ${large ? "text-2xl" : "text-lg"}`}>
+          {value ? fmtAmount(value) : "0"}
+          {active && <span style={{ background: C.gold }} className="caret w-0.5 h-[1.1em] ml-0.5 rounded-full" />}
+        </span>
+      </button>
+    </div>
+  );
+}
+
+function PadKey({ k, onKey, children, className = "", style }) {
+  return (
+    <button type="button" onClick={() => onKey(k)}
+      style={{ background: `${C.charcoal}40`, borderColor: `${C.charcoal}66`, fontFamily: MONO, touchAction: "manipulation", ...style }}
+      className={`h-14 border rounded-xl text-2xl font-bold flex items-center justify-center active:scale-95 active:bg-white/10 transition select-none ${className}`}>
+      {children}
+    </button>
+  );
+}
+
+// Zahlentastatur im IMPULS-Look als Bottom-Sheet. Per Portal in #app-screen gerendert —
+// die Kachel-Hülle hat ein `transform` und würde `position: fixed` sonst auf sich beschneiden.
+function CurrencyPad({ eur, ntd, active, rate, onSelect, onKey, onClose }) {
+  const sheet = (
+    <div className="fixed inset-0 z-40 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.55)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()}
+        style={{ background: C.surfaceHigh, borderColor: `${C.charcoal}66`, paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+        className="w-full max-w-md border-t rounded-t-3xl px-4 pt-3 space-y-3 sheet-up">
+        <div style={{ background: `${C.charcoal}` }} className="w-10 h-1 rounded-full mx-auto" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Coins className="w-4 h-4" style={{ color: C.gold }} />
+            <Label>Umrechnen</Label>
+          </div>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-lg active:scale-95" style={{ background: `${C.charcoal}55` }} aria-label="Schließen">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <AmountField label="Euro (EUR)" symbol="€" value={eur} active={active === 'eur'} onClick={() => onSelect('eur')} large />
+        <AmountField label="Neuer Taiwan-Dollar (NTD)" symbol="NT$" value={ntd} active={active === 'ntd'} onClick={() => onSelect('ntd')} large />
+        <p style={{ color: C.silver, fontFamily: MONO }} className="text-[10px] uppercase tracking-widest opacity-70 text-center">
+          1 EUR ≈ {rate.toFixed(2).replace('.', ',')} NTD
+        </p>
+
+        <div className="grid grid-cols-4 gap-2 pt-1">
+          <PadKey onKey={onKey} k="1">1</PadKey><PadKey onKey={onKey} k="2">2</PadKey><PadKey onKey={onKey} k="3">3</PadKey>
+          <PadKey onKey={onKey} k="back" style={{ color: C.silver }}><Delete className="w-6 h-6" /></PadKey>
+          <PadKey onKey={onKey} k="4">4</PadKey><PadKey onKey={onKey} k="5">5</PadKey><PadKey onKey={onKey} k="6">6</PadKey>
+          <PadKey onKey={onKey} k="clear" style={{ color: C.silver }} className="text-lg">C</PadKey>
+          <PadKey onKey={onKey} k="7">7</PadKey><PadKey onKey={onKey} k="8">8</PadKey><PadKey onKey={onKey} k="9">9</PadKey>
+          <button type="button" onClick={onClose}
+            style={{ background: C.gold, touchAction: "manipulation" }}
+            className="row-span-2 rounded-xl text-white flex flex-col items-center justify-center gap-1 active:scale-95 transition">
+            <Check className="w-6 h-6" />
+            <span style={{ letterSpacing: "0.14em" }} className="text-[10px] font-black uppercase">Fertig</span>
+          </button>
+          <PadKey onKey={onKey} k=".">,</PadKey><PadKey onKey={onKey} k="0">0</PadKey>
+          <PadKey onKey={onKey} k="swap" style={{ color: C.gold }} className="text-base"><ArrowLeftRight className="w-5 h-5" /></PadKey>
+        </div>
+      </div>
+    </div>
+  );
+  return createPortal(sheet, document.getElementById('app-screen') || document.body);
 }
 
 export const HOTEL_FIELDS = [
