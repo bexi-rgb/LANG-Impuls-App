@@ -62,7 +62,20 @@
    Größe dieses Elements zugeschnitten statt auf den ganzen Bildschirm. Ohne
    "both" ist nach Ablauf der Animation kein Transform mehr gesetzt; da es
    keine animation-delay gibt, sieht man visuell keinen Unterschied. */
+@keyframes flyAcross {
+  0% { transform: translateX(0); opacity: 0; }
+  12%, 88% { opacity: 1; }
+  100% { transform: translateX(200px); opacity: 0; }
+}
+@keyframes loaderMsg {
+  0% { opacity: 0; transform: translateY(6px); }
+  15%, 85% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-6px); }
+}
+
 .fadeup { animation: fadeUp 0.3s ease; }
+.fly-across { animation: flyAcross 2.4s ease-in-out infinite; }
+.loader-msg { animation: loaderMsg 2.4s ease both; }
 .slidedown { animation: slideDown 0.35s ease; }
 .pulse { animation: pulseDot 1.6s ease infinite; }
 .slide-in-right { animation: slideInRight 0.22s ease-out; }
@@ -76,5 +89,5 @@
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .tickr, .pulse, .fadeup, .slidedown, .slide-in-right, .slide-in-left { animation: none; }
+  .tickr, .pulse, .fadeup, .fly-across, .loader-msg, .slidedown, .slide-in-right, .slide-in-left { animation: none; }
 }

@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Wifi, Signal, Battery, Home, Calendar, CalendarDays, FileText, MessageCircle, MessageSquare,
   Camera, ImageIcon, ShieldAlert, LogOut, LogIn, User, Key, Bell, ChevronDown, ChevronRight,
-  ChevronLeft, Sparkles, Edit3, X, Users, Search,
+  ChevronLeft, Sparkles, Edit3, X, Users, Search, Plane,
 } from 'lucide-react';
 import { C, FONT, MONO, INITIAL_TRAVELERS } from './constants.js';
 import { EMOJI_CATEGORIES } from './emoji.js';
@@ -112,8 +112,45 @@ export const Logo = () => (
 );
 
 
-export function LoginView({ travelers, onLogin, isSupabaseConfigured = false, onPasswordLogin }) {
-  const [u, setU] = useState(""); const [p, setP] = useState(""); const [err, setErr] = useState(null);
+const LOADING_MESSAGES = [
+  "Koffer werden gepackt…",
+  "Bereit machen für Taiwan…",
+  "Reisepässe werden gesucht…",
+  "Bubble Tea wird bestellt…",
+  "Nachtmärkte werden ausgekundschaftet…",
+  "Taipei 101 wird angepeilt…",
+  "Laternen werden angezündet…",
+  "Boarding-Pässe werden gedruckt…",
+];
+
+/* Lade-Screen (nach „Anmelden“, solange Sitzung/Profil noch geladen werden). */
+export function LoadingScreen() {
+  const [i, setI] = useState(() => Math.floor(Math.random() * LOADING_MESSAGES.length));
+  useEffect(() => {
+    const t = setInterval(() => setI((n) => (n + 1) % LOADING_MESSAGES.length), 2400);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div style={{ background: C.bg, fontFamily: FONT }} className="h-full flex flex-col items-center justify-center p-6 text-white relative overflow-hidden">
+      <div style={{ background: `${C.gold}14` }} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] h-[420px] rounded-full blur-[110px] pointer-events-none" />
+      <div className="relative z-10 flex flex-col items-center gap-8">
+        <div style={{ background: C.gold }} className="px-6 py-4 rounded-2xl shadow-xl"><Logo /></div>
+        <div className="relative w-[224px] h-8">
+          <div style={{ borderColor: `${C.silver}40` }} className="absolute left-0 right-0 top-1/2 border-t-2 border-dashed" />
+          <div className="absolute top-0 left-0 fly-across">
+            <Plane style={{ color: C.gold, background: C.bg }} className="w-7 h-7 p-0.5 rotate-45" />
+          </div>
+        </div>
+        <p key={i} style={{ color: C.silver, fontFamily: MONO }} className="loader-msg text-sm text-center h-5" role="status">
+          {LOADING_MESSAGES[i]}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export function LoginView({ travelers, onLogin, isSupabaseConfigured = false, onPasswordLogin, error = null }) {
+  const [u, setU] = useState(""); const [p, setP] = useState(""); const [err, setErr] = useState(error);
   const [sending, setSending] = useState(false);
 
   const submit = async () => {
@@ -124,10 +161,20 @@ export function LoginView({ travelers, onLogin, isSupabaseConfigured = false, on
       if (!name || !p) { setErr("Bitte Benutzername und Passwort eingeben."); return; }
       setSending(true);
       try {
-        await onPasswordLogin(toLoginEmail(name), p);
+        // Beim allerersten Start der Home-Screen-App kann die Anmeldung
+        // hängen — nach 30 s lieber eine Meldung als endloses Laden.
+        await Promise.race([
+          onPasswordLogin(toLoginEmail(name), p),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 30000)),
+        ]);
+        // Erfolg: Lade-Screen bleibt stehen, bis App das Profil hat und
+        // diese Ansicht ersetzt.
       } catch (e) {
-        setErr(e.message?.includes("Invalid") ? "Benutzername oder Passwort falsch." : (e.message || "Anmeldung fehlgeschlagen."));
-      } finally {
+        setErr(
+          e.message?.includes("Invalid") ? "Benutzername oder Passwort falsch."
+          : e.message === "TIMEOUT" || e.message?.includes("fetch") ? "Keine Verbindung zum Server. Bitte erneut versuchen."
+          : (e.message || "Anmeldung fehlgeschlagen.")
+        );
         setSending(false);
       }
       return;
@@ -138,6 +185,8 @@ export function LoginView({ travelers, onLogin, isSupabaseConfigured = false, on
     if (m && (!m.password || m.password === p)) return onLogin({ ...m, role: "traveler" });
     setErr(m ? "Falsches Passwort." : "Benutzername oder E-Mail-Adresse nicht gefunden.");
   };
+
+  if (sending) return <LoadingScreen />;
 
   const input = { background: `${C.charcoal}4d`, borderColor: `${C.charcoal}80`, fontFamily: MONO };
   return (

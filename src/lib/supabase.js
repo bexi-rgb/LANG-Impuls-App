@@ -72,8 +72,7 @@ function readPersistedUser() {
  * einem Update) — so erscheint die App sofort statt eines Lade-Screens,
  * der beim Token-Refresh über schlechtes Netz bis zu 30 s hängen kann.
  */
-function provisionalProfile() {
-  const u = readPersistedUser();
+function provisionalProfile(u = readPersistedUser()) {
   if (!u?.id) return null;
   return {
     id: u.id,
@@ -101,6 +100,7 @@ export function useSession() {
   const [profile, setProfile] = useState(() => (
     supabase ? (loadValue(CACHED_PROFILE_KEY, null) || provisionalProfile()) : null
   ));
+  const [profileError, setProfileError] = useState(null);
 
   useEffect(() => {
     if (!supabase) return;
@@ -121,38 +121,54 @@ export function useSession() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Bei jeder Session-Änderung: Profil aus travelers-Tabelle laden
+  // Bei jeder Session-Änderung: Profil aus travelers-Tabelle laden.
+  // Schlägt das fehl (z.B. langsames Netz beim allerersten Start der
+  // Home-Screen-App), wird mit wachsenden Pausen erneut versucht — vorher
+  // blieb die App dann stumm auf dem Login-Screen hängen. Klappt es nach
+  // drei Versuchen nicht, geht es mit dem vorläufigen Profil aus der
+  // Session weiter, bis ein späterer Versuch das echte Profil liefert.
   useEffect(() => {
     if (!session?.user?.id || !supabase) return;
     let cancelled = false;
-    (async () => {
+    let timer = null;
+    let attempt = 0;
+    setProfileError(null);
+    const load = async () => {
+      let error = null;
       try {
-        const { data, error } = await supabase
+        const res = await supabase
           .from('travelers')
           .select('*')
           .eq('id', session.user.id)
           .single();
         if (cancelled) return;
-        if (data) {
-          setProfile(data);
-          saveValue(CACHED_PROFILE_KEY, data);
-        } else if (error?.code === 'PGRST116') {
-          // Kein travelers-Eintrag für diesen Account → wirklich kein Profil
-          setProfile(null);
-          removeValue(CACHED_PROFILE_KEY);
-        } else if (error) {
-          // Netzwerk-/Serverfehler: vorhandenes (gecachtes) Profil behalten,
-          // sonst hängt der nächste Start ohne Cache
-          console.warn('[supabase] Profil-Load-Fehler:', error.message);
+        if (res.data) {
+          setProfile(res.data);
+          saveValue(CACHED_PROFILE_KEY, res.data);
+          return;
         }
+        error = res.error;
       } catch (e) {
-        if (!cancelled) console.warn('[supabase] Profil-Load-Fehler:', e.message);
+        if (cancelled) return;
+        error = e;
       }
-    })();
-    return () => { cancelled = true; };
+      if (error?.code === 'PGRST116') {
+        // Kein travelers-Eintrag für diesen Account → wirklich kein Profil.
+        // Abmelden, damit der Login-Screen die Meldung zeigen kann.
+        setProfileError('Für dieses Konto ist kein Reiseprofil hinterlegt.');
+        supabase.auth.signOut({ scope: 'local' });
+        return;
+      }
+      console.warn('[supabase] Profil-Load-Fehler:', error?.message);
+      attempt += 1;
+      if (attempt === 3) setProfile((p) => p || provisionalProfile(session.user));
+      timer = setTimeout(load, Math.min(1000 * 2 ** (attempt - 1), 15000));
+    };
+    load();
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [session?.user?.id]);
 
-  return { session, profile, user: session?.user || null };
+  return { session, profile, profileError, user: session?.user || null };
 }
 
 /**
@@ -216,7 +232,10 @@ export const deleteTravelerAccount = (id) => manageTraveler('DELETE', { id });
 
 export async function signOut() {
   if (!supabase) return;
-  await supabase.auth.signOut();
+  // scope 'local': nur dieses Gerät abmelden. Der Standard ('global') beendet
+  // ALLE Sitzungen des Kontos — Abmelden in der Home-Screen-App hat so auch
+  // den Browser rausgeworfen (und umgekehrt).
+  await supabase.auth.signOut({ scope: 'local' });
 }
 
 // ═══════════════════════════════════════════════════════════════════

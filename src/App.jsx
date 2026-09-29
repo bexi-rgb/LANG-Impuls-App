@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  PhoneFrame, Header, BottomNav, LoginView,
+  PhoneFrame, Header, BottomNav, LoginView, LoadingScreen,
 } from './shell.jsx';
 import {
   INITIAL_TRAVELERS, INITIAL_MESSAGES, INITIAL_PHOTOS, INITIAL_SCHEDULE,
@@ -138,7 +138,7 @@ export default function App() {
   // ── User-Session ────────────────────────────────────────────────
   // Wenn Supabase konfiguriert ist: benutze echte Auth via useSession.
   // Sonst: Fallback auf LocalStorage-Demo-Login (aktueller Modus).
-  const { profile } = useSession();
+  const { session, profile, profileError } = useSession();
   const [demoUser, setDemoUser] = useState(() => {
     if (isSupabaseConfigured) return null;
     const stored = loadValue('user', null);
@@ -453,6 +453,12 @@ export default function App() {
     window.location.reload();
   };
 
+  // Angemeldet, aber Profil noch unterwegs: Lade-Screen statt Login-Maske
+  // (sonst sieht es aus, als hätte „Anmelden“ nicht funktioniert).
+  if (!user && isSupabaseConfigured && session) return (
+    <PhoneFrame><LoadingScreen /></PhoneFrame>
+  );
+
   if (!user) return (
     <PhoneFrame>
       <LoginView
@@ -460,6 +466,7 @@ export default function App() {
         onLogin={login}
         isSupabaseConfigured={isSupabaseConfigured}
         onPasswordLogin={signInWithPassword}
+        error={profileError}
       />
     </PhoneFrame>
   );
