@@ -60,6 +60,17 @@ export function ChatTab({ user, focus, travelers, messages, onSend, typing, onTo
     setText("");
   };
 
+  // Wie iMessage: nach unten wischen im Nachrichtenbereich schließt die Tastatur.
+  const swipeStartY = useRef(null);
+  const onListTouchStart = (e) => { swipeStartY.current = e.touches[0].clientY; };
+  const onListTouchMove = (e) => {
+    if (swipeStartY.current == null || document.activeElement !== textRef.current) return;
+    if (e.touches[0].clientY - swipeStartY.current > 40) {
+      textRef.current?.blur();
+      swipeStartY.current = null;
+    }
+  };
+
   const insertEmoji = (emoji) => {
     const el = textRef.current;
     if (!el) { setText((t) => t + emoji); return; }
@@ -230,7 +241,8 @@ export function ChatTab({ user, focus, travelers, messages, onSend, typing, onTo
             </div>
           </div>
 
-          <div ref={scrollRef} className="flex-1 overflow-y-auto px-1 py-4 space-y-4">
+          <div ref={scrollRef} onTouchStart={onListTouchStart} onTouchMove={onListTouchMove}
+            className="flex-1 overflow-y-auto px-1 py-4 space-y-4">
             <div className="flex justify-center">
               <span style={{ background: `${C.charcoal}66`, color: C.silver, letterSpacing: "0.2em" }} className="px-4 py-1.5 rounded-full text-[13px] font-semibold uppercase">Heute</span>
             </div>
@@ -342,7 +354,8 @@ export function ChatTab({ user, focus, travelers, messages, onSend, typing, onTo
               placeholder={mode === "group" ? "Nachricht an die Gruppe …" : (isAdmin ? `Nachricht an ${partner?.name?.split(" ")[0] || "…"} …` : "Nachricht an Rebekka …")}
               style={{ background: `${C.charcoal}33`, borderColor: `${C.charcoal}66` }}
               className="flex-1 border rounded-xl px-4 py-3 text-base text-white placeholder:opacity-70 focus:outline-none" />
-            <button type="button" onClick={send} disabled={!text.trim()}
+            {/* preventDefault: Tippen auf Senden nimmt dem Eingabefeld nicht den Fokus → Tastatur bleibt offen */}
+            <button type="button" onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={send} disabled={!text.trim()}
               style={{ background: C.gold }} className="p-3 rounded-xl text-white hover:opacity-90 active:scale-95 transition disabled:opacity-40" aria-label="Senden">
               <Send className="w-5 h-5" />
             </button>
