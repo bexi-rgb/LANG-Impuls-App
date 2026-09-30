@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
+      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'circle-logo.png'],
       // Push-Benachrichtigungen: Handler liegt in public/push-sw.js
       workbox: {
         importScripts: ['/push-sw.js'],

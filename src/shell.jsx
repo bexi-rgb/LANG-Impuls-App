@@ -179,6 +179,7 @@ const LOADING_MESSAGES = [
   "Taipei 101 wird angepeilt…",
   "Laternen werden angezündet…",
   "Boarding-Pässe werden gedruckt…",
+  "Be part of the circle…",
 ];
 
 /* Lade-Screen (nach „Anmelden“, solange Sitzung/Profil noch geladen werden). */
@@ -192,7 +193,7 @@ export function LoadingScreen() {
     <div style={{ background: C.bg, fontFamily: FONT }} className="h-full flex flex-col items-center justify-center p-6 text-white relative overflow-hidden">
       <div style={{ background: `${C.gold}14` }} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] h-[420px] rounded-full blur-[110px] pointer-events-none" />
       <div className="relative z-10 flex flex-col items-center gap-8">
-        <div style={{ background: C.gold }} className="px-6 py-4 rounded-2xl shadow-xl"><Logo /></div>
+        <img src="/circle-logo.png" alt="be part of the circle" className="w-32 h-32 select-none" draggable={false} />
         <div className="relative w-[224px] h-8">
           <div style={{ borderColor: `${C.silver}40` }} className="absolute left-0 right-0 top-1/2 border-t-2 border-dashed" />
           <div className="absolute top-0 left-0 fly-across">
