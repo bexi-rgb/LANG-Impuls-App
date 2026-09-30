@@ -11,6 +11,9 @@
     background: #222222;
     color: #ffffff;
     font-family: 'Raleway', ui-sans-serif, system-ui, sans-serif;
+    /* Raleway hat standardmäßig Mediävalziffern – für Zeiten/Flugnummern
+       gleich hohe Ziffern verwenden. */
+    font-variant-numeric: lining-nums;
     -webkit-tap-highlight-color: transparent;
     -webkit-font-smoothing: antialiased;
   }

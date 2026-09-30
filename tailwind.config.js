@@ -17,7 +17,7 @@ export default {
       },
       fontFamily: {
         sans: ["'Raleway'", 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        mono: ["'JetBrains Mono'", 'ui-monospace', 'monospace'],
+        mono: ["'Raleway'", 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
     },
   },

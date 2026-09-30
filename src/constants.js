@@ -17,7 +17,7 @@ export const C = {
   surfaceHigh: "#2d2d2c",
 };
 export const FONT = `'Raleway', ui-sans-serif, system-ui, sans-serif`;
-export const MONO = `'JetBrains Mono', ui-monospace, monospace`;
+export const MONO = FONT; // früher JetBrains Mono – App nutzt durchgehend Raleway
 
 export const AV1 = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150";
 export const AV2 = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150";
