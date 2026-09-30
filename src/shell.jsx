@@ -43,22 +43,48 @@ export function StatusBar() {
 // sondern schiebt die ganze Seite nach oben — Header & Chat-Kopf verschwinden dann
 // aus dem Bild. Wir heften die App stattdessen an den sichtbaren Bereich
 // (visualViewport) und setzen html[data-kb], damit die Bottom-Nav ausgeblendet wird.
+// Erkennung: Textfeld fokussiert UND sichtbare Höhe deutlich kleiner als die größte
+// bisher gesehene (innerHeight taugt nicht — im iOS-26-Home-Screen-Modus schrumpft
+// es mit der Tastatur mit).
+const isEditable = (el) =>
+  !!el && (el.isContentEditable || el.tagName === 'TEXTAREA' ||
+    (el.tagName === 'INPUT' && !/^(button|checkbox|radio|file|range|color|submit|reset|image|hidden)$/i.test(el.type)));
+
 function useKeyboardViewport(enabled) {
   const [vp, setVp] = useState(null); // null = Tastatur zu
   useEffect(() => {
     const v = window.visualViewport;
     if (!enabled || !v) return;
+    let fullH = v.height;
+    let portrait = window.innerHeight >= window.innerWidth;
     const update = () => {
-      const open = window.innerHeight - v.height > 120;
+      const p = window.innerHeight >= window.innerWidth;
+      if (p !== portrait) { portrait = p; fullH = v.height; } // Drehung: neu messen
+      const focused = isEditable(document.activeElement);
+      if (!focused) fullH = Math.max(fullH, v.height);
+      const open = focused && fullH - v.height > 120;
       document.documentElement.toggleAttribute('data-kb', open);
       setVp(open ? { top: v.offsetTop, height: v.height } : null);
+      // iOS scrollt beim Fokussieren Seite und overflow-hidden-Container hoch, um das
+      // Eingabefeld zu zeigen — nach dem Anpassen der Höhe wieder auf 0 zurücksetzen.
+      if (open) requestAnimationFrame(() => {
+        if (window.scrollY) window.scrollTo(0, 0);
+        const screen = document.getElementById('app-screen');
+        if (screen?.scrollTop) screen.scrollTop = 0;
+      });
     };
+    // focusout feuert, bevor der neue Fokus gesetzt ist → einen Tick warten
+    const later = () => setTimeout(update, 0);
     update();
     v.addEventListener('resize', update);
     v.addEventListener('scroll', update);
+    document.addEventListener('focusin', later);
+    document.addEventListener('focusout', later);
     return () => {
       v.removeEventListener('resize', update);
       v.removeEventListener('scroll', update);
+      document.removeEventListener('focusin', later);
+      document.removeEventListener('focusout', later);
       document.documentElement.removeAttribute('data-kb');
     };
   }, [enabled]);
