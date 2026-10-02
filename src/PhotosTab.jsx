@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Camera, Image as ImageIcon, MessageCircle, Send, X, Plus,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, SwitchCamera,
 } from 'lucide-react';
 import { C, MONO, SUGGESTED_TAGS, PHOTO_GRADIENTS } from './constants.js';
+import { AppOverlay } from './shell.jsx';
 
 export function SharePhotoModal({ user, onClose, onShare }) {
   const [image, setImage] = useState(null);      // data URL (Vorschau)
@@ -13,6 +14,7 @@ export function SharePhotoModal({ user, onClose, onShare }) {
   const [tagInput, setTagInput] = useState("");
   const [camActive, setCamActive] = useState(false);
   const [camError, setCamError] = useState(null);
+  const [facing, setFacing] = useState("environment"); // "user" = Selfie-Kamera
   const [submitting, setSubmitting] = useState(false);
   const [shareError, setShareError] = useState(null);
   const galleryRef = useRef(null);
@@ -35,18 +37,24 @@ export function SharePhotoModal({ user, onClose, onShare }) {
     e.target.value = "";
   };
 
-  const startCamera = async () => {
+  const startCamera = async (mode = facing) => {
     setCamError(null);
+    // Laufende Kamera erst freigeben — iOS liefert sonst keinen zweiten Stream
+    if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null; }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: mode }, audio: false });
+      setFacing(mode);
       streamRef.current = stream;
       setCamActive(true);
       setImage(null);
       setTimeout(() => { if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play().catch(() => {}); } }, 50);
     } catch (err) {
-      setCamError("Kamerazugriff nicht möglich. Bitte erlauben Sie den Zugriff in Ihren Browser-Einstellungen oder nutzen Sie die Galerie.");
+      setCamActive(false);
+      setCamError("Kamerazugriff nicht möglich. Bitte erlaube den Zugriff in deinen Browser-Einstellungen oder nutze die Galerie.");
     }
   };
+
+  const switchCamera = () => startCamera(facing === "user" ? "environment" : "user");
 
   const capture = () => {
     const v = videoRef.current;
@@ -54,7 +62,10 @@ export function SharePhotoModal({ user, onClose, onShare }) {
     const canvas = document.createElement("canvas");
     canvas.width = v.videoWidth || 1080;
     canvas.height = v.videoHeight || 1080;
-    canvas.getContext("2d").drawImage(v, 0, 0, canvas.width, canvas.height);
+    const ctx = canvas.getContext("2d");
+    // Selfie so speichern, wie man sich in der Vorschau gesehen hat (gespiegelt)
+    if (facing === "user") { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
+    ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
     setImage(canvas.toDataURL("image/jpeg", 0.9));
     canvas.toBlob((blob) => { if (blob) setImageFile(new File([blob], `capture-${Date.now()}.jpg`, { type: "image/jpeg" })); }, "image/jpeg", 0.9);
     stopCam();
@@ -84,8 +95,8 @@ export function SharePhotoModal({ user, onClose, onShare }) {
 
   const input = { background: `${C.charcoal}33`, borderColor: `${C.charcoal}80` };
   return (
-    <div className="fixed inset-0 z-[95] bg-black/85 flex items-center justify-center p-4" onClick={() => { stopCam(); onClose(); }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: C.surface, borderColor: `${C.charcoal}4d` }} className="border rounded-2xl max-w-md w-full overflow-hidden fadeup max-h-[88vh] flex flex-col">
+    <AppOverlay className="z-[95] bg-black/85 flex items-center justify-center p-4" onClick={() => { stopCam(); onClose(); }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: C.surface, borderColor: `${C.charcoal}4d` }} className="border rounded-2xl max-w-md w-full overflow-hidden fadeup max-h-full flex flex-col">
         <div style={{ background: C.charcoal }} className="px-5 py-3.5 flex justify-between items-center shrink-0">
           <span className="font-black text-base uppercase tracking-wide text-white">Foto teilen</span>
           <button onClick={() => { stopCam(); onClose(); }} className="text-white/80 hover:text-white" aria-label="Schließen"><X className="w-6 h-6" /></button>
@@ -97,15 +108,23 @@ export function SharePhotoModal({ user, onClose, onShare }) {
             {image ? (
               <img src={image} alt="Vorschau" className="w-full h-full object-cover" />
             ) : camActive ? (
-              <video ref={videoRef} playsInline muted className="w-full h-full object-cover" />
+              <video ref={videoRef} playsInline muted className="w-full h-full object-cover"
+                style={facing === "user" ? { transform: "scaleX(-1)" } : undefined} />
             ) : (
               <div className="text-center px-6">
                 <ImageIcon className="w-12 h-12 mx-auto mb-3" style={{ color: `${C.silver}80` }} />
-                <p style={{ color: C.silver }} className="text-sm font-semibold">Wählen Sie ein Foto aus der Galerie oder nehmen Sie eines auf.</p>
+                <p style={{ color: C.silver }} className="text-sm font-semibold">Wähle ein Foto aus der Galerie oder nimm eines auf.</p>
               </div>
             )}
             {camActive && (
-              <button onClick={capture} className="absolute bottom-4 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full bg-white ring-4 ring-white/40 active:scale-90 transition" aria-label="Auslösen" />
+              <>
+                <button onClick={capture} className="absolute bottom-4 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full bg-white ring-4 ring-white/40 active:scale-90 transition" aria-label="Auslösen" />
+                <button onClick={switchCamera}
+                  className="absolute bottom-6 right-4 w-11 h-11 rounded-full bg-black/55 text-white flex items-center justify-center active:scale-90 transition"
+                  aria-label={facing === "user" ? "Zur Rückkamera wechseln" : "Zur Selfie-Kamera wechseln"}>
+                  <SwitchCamera className="w-5 h-5" />
+                </button>
+              </>
             )}
           </div>
 
@@ -118,7 +137,7 @@ export function SharePhotoModal({ user, onClose, onShare }) {
               className="flex items-center justify-center gap-2 py-3 rounded-xl text-[13px] font-black uppercase text-white hover:opacity-90 active:scale-[.98] transition">
               <ImageIcon className="w-5 h-5" style={{ color: C.gold }} /> Galerie
             </button>
-            <button onClick={camActive ? capture : startCamera} style={{ background: `${C.charcoal}4d`, letterSpacing: "0.1em" }}
+            <button onClick={camActive ? capture : () => startCamera()} style={{ background: `${C.charcoal}4d`, letterSpacing: "0.1em" }}
               className="flex items-center justify-center gap-2 py-3 rounded-xl text-[13px] font-black uppercase text-white hover:opacity-90 active:scale-[.98] transition">
               <Camera className="w-5 h-5" style={{ color: C.gold }} /> {camActive ? "Auslösen" : "Kamera"}
             </button>
@@ -162,7 +181,7 @@ export function SharePhotoModal({ user, onClose, onShare }) {
           </button>
         </div>
       </div>
-    </div>
+    </AppOverlay>
   );
 }
 
@@ -313,23 +332,26 @@ function PhotoViewer({ photos, index, onIndexChange, onClose, onTagClick, onComm
     }
   };
 
+  const commentRef = useRef(null);
   const submitComment = () => {
     if (!comment.trim()) return;
     onComment(comment.trim());
     setComment("");
+    commentRef.current?.blur(); // Tastatur zu → Foto und Zurück-Button wieder voll sichtbar
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col" role="dialog" aria-modal="true">
+    <AppOverlay className="z-50 bg-black flex flex-col" role="dialog" aria-modal="true">
       {/* Top-Bar */}
-      <div className="flex items-center justify-between p-3 shrink-0" style={{ background: "rgba(0,0,0,0.85)" }}>
-        <button onClick={onClose} className="p-1.5 bg-white/10 rounded-full text-white active:scale-95" aria-label="Schließen">
-          <X className="w-5 h-5" />
+      <div className="flex items-center justify-between gap-2 px-3 py-2.5 shrink-0" style={{ background: "rgba(0,0,0,0.85)", paddingTop: "max(0.625rem, env(safe-area-inset-top))" }}>
+        <button onClick={onClose} style={{ letterSpacing: "0.1em" }}
+          className="flex items-center gap-1 pl-1.5 pr-3 py-2 bg-white/15 rounded-full text-white text-[12px] font-black uppercase active:scale-95 transition" aria-label="Zurück zur Galerie">
+          <ChevronLeft className="w-5 h-5" /> Galerie
         </button>
         <span style={{ fontFamily: MONO, letterSpacing: "0.15em" }} className="text-[12px] font-bold text-white/80 uppercase">
           {index + 1} / {photos.length}
         </span>
-        <div className="w-8" />
+        <div className="w-[104px]" />
       </div>
 
       {/* Bild-Bereich */}
@@ -366,8 +388,8 @@ function PhotoViewer({ photos, index, onIndexChange, onClose, onTagClick, onComm
       </div>
 
       {/* Info + Kommentare */}
-      <div className="shrink-0 max-h-[45%] overflow-y-auto" style={{ background: C.surface }}>
-        <div className="p-4 space-y-3">
+      <div className="shrink-0 max-h-[45%] flex flex-col" style={{ background: C.surface }}>
+        <div className="min-h-0 overflow-y-auto p-4 pb-2 space-y-3">
           <div>
             <p className="text-base font-extrabold text-white">{photo.title}</p>
             <p style={{ color: C.silver, fontFamily: MONO }} className="text-[12px]">{photo.author} · {photo.time}</p>
@@ -400,14 +422,19 @@ function PhotoViewer({ photos, index, onIndexChange, onClose, onTagClick, onComm
               </div>
             ))}
           </div>
-          <div className="flex gap-2 pt-1">
+        </div>
+        {/* Eingabe außerhalb des Scrollbereichs → bleibt bei vielen Kommentaren sichtbar */}
+        <div className="shrink-0 px-4 pt-2 pb-3" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
+          <div className="flex gap-2">
+            {/* text-base (16px) wie im Chat — kleinere Eingabefelder zoomt iOS beim Fokussieren */}
             <input
+              ref={commentRef}
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && submitComment()}
               placeholder="Kommentieren …"
               style={{ background: `${C.charcoal}40`, borderColor: `${C.charcoal}66` }}
-              className="flex-1 border rounded-xl px-3 py-2 text-[14px] text-white placeholder:opacity-70 focus:outline-none"
+              className="flex-1 border rounded-xl px-3 py-2 text-base text-white placeholder:opacity-70 focus:outline-none"
             />
             <button type="button" onClick={submitComment} style={{ background: C.gold }}
               className="px-3 rounded-xl text-white active:scale-95 transition" aria-label="Kommentar senden">
@@ -416,6 +443,6 @@ function PhotoViewer({ photos, index, onIndexChange, onClose, onTagClick, onComm
           </div>
         </div>
       </div>
-    </div>
+    </AppOverlay>
   );
 }

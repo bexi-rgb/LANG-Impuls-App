@@ -75,6 +75,18 @@ export async function disablePush() {
   }
 }
 
+/** App ist sichtbar → angezeigte Push-Benachrichtigungen aus der Mitteilungszentrale entfernen. */
+export async function clearShownNotifications() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    const shown = await reg?.getNotifications?.();
+    (shown || []).forEach((n) => n.close());
+  } catch (e) {
+    console.warn('[push] clear', e.message);
+  }
+}
+
 /** Versand anstoßen (fire-and-forget) — Server liest Inhalt + Empfänger selbst aus der DB. */
 export async function triggerPush(kind, id, extra = {}) {
   if (!isSupabaseConfigured || !id) return;

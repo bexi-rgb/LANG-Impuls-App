@@ -53,7 +53,7 @@ export function PushPrompt({ user }) {
         <div className="space-y-1 pr-6">
           {title("Benachrichtigungen blockiert")}
           <p className="text-sm leading-snug">
-            Bitte in den iPhone-<b>Einstellungen → Mitteilungen → IMPULS</b> erlauben, sonst verpassen Sie Nachrichten der Gruppe.
+            Bitte in den iPhone-<b>Einstellungen → Mitteilungen → IMPULS</b> erlauben, sonst verpasst du Nachrichten der Gruppe.
           </p>
         </div>
         <button onClick={() => setHidden(true)} aria-label="Ausblenden" className="absolute top-3 right-3 p-1 opacity-70">
@@ -69,7 +69,7 @@ export function PushPrompt({ user }) {
         <BellRing className="w-5 h-5 shrink-0 mt-0.5" style={{ color: C.gold }} />
         <div className="space-y-1">
           {title("Benachrichtigungen aktivieren")}
-          <p className="text-sm leading-snug">Damit Sie Chat-Nachrichten und Reise-Updates sofort aufs Handy bekommen – auch wenn die App geschlossen ist.</p>
+          <p className="text-sm leading-snug">Damit du Chat-Nachrichten und Reise-Updates sofort aufs Handy bekommst – auch wenn die App geschlossen ist.</p>
         </div>
       </div>
       <button onClick={enable} disabled={busy}

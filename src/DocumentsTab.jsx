@@ -139,7 +139,7 @@ export function DocumentsTab({ user, docs, travelers, focusId, onAddDoc }) {
     <div className="space-y-6 fadeup p-4 pb-6 relative">
       <div className="border-b pb-5 space-y-3" style={{ borderColor: `${C.charcoal}33` }}>
         <div>
-          <Label>Ihre Unterlagen</Label>
+          <Label>Deine Unterlagen</Label>
           <h2 className="text-5xl font-black tracking-tighter uppercase mt-1 leading-[0.95]">
             Reise<br /><span style={{ color: C.gold }}>Dokumente</span>
           </h2>

@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Send, Paperclip, Check, CheckCheck, User, Users, ChevronLeft, ChevronDown, Search, Smile, Plus,
+  Send, ImagePlus, Check, CheckCheck, User, Users, ChevronLeft, ChevronDown, Search, Smile, Plus, X, Loader2,
 } from 'lucide-react';
 import { C, MONO } from './constants.js';
-import { Label, Avatar, EmojiPicker } from './shell.jsx';
+import { Label, Avatar, EmojiPicker, AppOverlay } from './shell.jsx';
 import { QUICK_REACTIONS } from './emoji.js';
+import { downscaleImage } from './lib/image.js';
 
 export function ChatTab({ user, focus, travelers, messages, onSend, typing, onToggleReaction }) {
   const isAdmin = user.role === "admin";
@@ -24,6 +25,11 @@ export function ChatTab({ user, focus, travelers, messages, onSend, typing, onTo
   const [query, setQuery] = useState("");
   const [emojiTarget, setEmojiTarget] = useState(null); // null | "composer" | messageId (Reaktion)
   const [reactMsgId, setReactMsgId] = useState(null); // Quick-Reaction-Popover für diese Nachricht
+  const [attachment, setAttachment] = useState(null); // { file, preview } — Bild vor dem Senden
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState(null);
+  const [lightbox, setLightbox] = useState(null); // Bild-URL in Vollansicht
+  const imageInputRef = useRef(null);
   const endRef = useRef(null);
   const scrollRef = useRef(null);
   const textRef = useRef(null);
@@ -54,11 +60,43 @@ export function ChatTab({ user, focus, travelers, messages, onSend, typing, onTo
     return () => v.removeEventListener("resize", stick);
   }, [showList, channel]);
 
-  const send = () => {
-    if (!text.trim() || !channel) return;
-    onSend(text.trim(), channel);
-    setText("");
+  const send = async () => {
+    if ((!text.trim() && !attachment) || !channel || sending) return;
+    if (!attachment) {
+      onSend(text.trim(), channel);
+      setText("");
+      return;
+    }
+    setSending(true);
+    setSendError(null);
+    try {
+      await onSend(text.trim(), channel, attachment.file);
+      setText("");
+      clearAttachment();
+    } catch (e) {
+      console.warn('[chat] Bild senden fehlgeschlagen:', e);
+      setSendError("Bild konnte nicht gesendet werden. Bitte erneut versuchen.");
+    } finally {
+      setSending(false);
+    }
   };
+
+  const onPickImage = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    setSendError(null);
+    const small = await downscaleImage(file);
+    if (attachment) URL.revokeObjectURL(attachment.preview);
+    setAttachment({ file: small, preview: URL.createObjectURL(small) });
+  };
+  const clearAttachment = () => {
+    if (attachment) URL.revokeObjectURL(attachment.preview);
+    setAttachment(null);
+    setSendError(null);
+  };
+  // Kanalwechsel verwirft ein noch nicht gesendetes Bild
+  useEffect(() => { clearAttachment(); }, [channel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Wie iMessage: nach unten wischen im Nachrichtenbereich schließt die Tastatur.
   const swipeStartY = useRef(null);
@@ -185,8 +223,8 @@ export function ChatTab({ user, focus, travelers, messages, onSend, typing, onTo
             )}
             {listItems.map(({ t, last }) => {
               const isPending = last && !isSenderAdmin(last.senderId);
-              const previewText = last?.text || "Noch keine Nachrichten";
-              const previewPrefix = !last ? "" : isSenderAdmin(last.senderId) ? "Sie: " : "";
+              const previewText = last ? (last.text || "📷 Foto") : "Noch keine Nachrichten";
+              const previewPrefix = !last ? "" : isSenderAdmin(last.senderId) ? "Du: " : "";
               return (
                 <button key={t.id} onClick={() => setPartnerId(t.id)}
                   className="w-full text-left px-2 py-3 rounded-xl hover:bg-white/[0.03] active:bg-white/[0.06] transition flex items-center gap-3">
@@ -253,8 +291,8 @@ export function ChatTab({ user, focus, travelers, messages, onSend, typing, onTo
                   {mode === "group"
                     ? "Noch keine Nachrichten im Gruppenchat."
                     : isAdmin
-                      ? `Beginnen Sie die Konversation mit ${partner?.name?.split(" ")[0] || "…"}.`
-                      : "Noch keine Nachrichten. Schreiben Sie Rebekka gerne jederzeit."}
+                      ? `Beginne die Konversation mit ${partner?.name?.split(" ")[0] || "…"}.`
+                      : "Noch keine Nachrichten. Schreib Rebekka gerne jederzeit."}
                 </p>
               </div>
             )}
@@ -289,8 +327,14 @@ export function ChatTab({ user, focus, travelers, messages, onSend, typing, onTo
                         onPointerCancel={cancelLongPress}
                         onContextMenu={(e) => e.preventDefault()}
                         style={{ background: me ? C.gold : C.surfaceHigh, borderColor: me ? "transparent" : `${C.charcoal}4d` }}
-                        className={`border px-4 py-2.5 text-base leading-relaxed select-none ${me ? "rounded-2xl rounded-br-sm text-white" : "rounded-2xl rounded-bl-sm"}`}>
-                        {m.text}
+                        className={`border text-base leading-relaxed select-none ${m.image ? "p-1" : "px-4 py-2.5"} ${me ? "rounded-2xl rounded-br-sm text-white" : "rounded-2xl rounded-bl-sm"}`}>
+                        {m.image && (
+                          <img src={m.image} alt="Foto" draggable={false}
+                            onClick={() => { if (reactMsgId !== m.id) setLightbox(m.image); }}
+                            onLoad={() => { if (i === channelMessages.length - 1) endRef.current?.scrollIntoView(); }}
+                            className="block w-60 max-w-full max-h-80 object-cover rounded-xl cursor-zoom-in" />
+                        )}
+                        {m.text && <div className={m.image ? "px-3 pt-1.5 pb-1" : ""}>{m.text}</div>}
                       </div>
                       <button type="button" onClick={() => openReactPicker(m.id)}
                         style={{ background: C.surfaceHigh, borderColor: `${C.charcoal}66`, color: C.silver }}
@@ -345,24 +389,51 @@ export function ChatTab({ user, focus, travelers, messages, onSend, typing, onTo
             <div ref={endRef} />
           </div>
 
-          <div className="flex items-center gap-2 pt-3 border-t" style={{ borderColor: `${C.charcoal}33` }}>
+          {attachment && (
+            <div className="pt-3 border-t flex items-start gap-3" style={{ borderColor: `${C.charcoal}33` }}>
+              <div className="relative shrink-0">
+                <img src={attachment.preview} alt="Ausgewähltes Bild" className="w-20 h-20 object-cover rounded-xl" />
+                {!sending && (
+                  <button type="button" onClick={clearAttachment} aria-label="Bild entfernen"
+                    className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-black/80 text-white flex items-center justify-center active:scale-90 transition">
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              <p style={{ color: sendError ? undefined : C.silver }} className={`text-[13px] leading-snug pt-1 ${sendError ? "text-red-400" : ""}`}>
+                {sendError || (sending ? "Bild wird gesendet …" : "Optional noch Text dazuschreiben, dann senden.")}
+              </p>
+            </div>
+          )}
+          <div className={`flex items-center gap-2 pt-3 ${attachment ? "" : "border-t"}`} style={{ borderColor: `${C.charcoal}33` }}>
             <button type="button" onClick={() => setEmojiTarget("composer")}
               style={{ color: C.silver }} className="p-2.5 hover:text-white transition" aria-label="Emoji"><Smile className="w-6 h-6" /></button>
-            <button type="button" onClick={() => alert("Dateianhang: Dokumente oder Fotos laden Sie in den Reitern Dateien bzw. Fotos hoch.")}
-              style={{ color: C.silver }} className="p-2.5 hover:text-white transition" aria-label="Anhang"><Paperclip className="w-6 h-6" /></button>
+            <input ref={imageInputRef} type="file" accept="image/*" onChange={onPickImage} className="hidden" />
+            <button type="button" onClick={() => imageInputRef.current?.click()} disabled={sending}
+              style={{ color: C.silver }} className="p-2.5 hover:text-white transition disabled:opacity-40" aria-label="Bild anhängen"><ImagePlus className="w-6 h-6" /></button>
             <input ref={textRef} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()}
               placeholder={mode === "group" ? "Nachricht an die Gruppe …" : (isAdmin ? `Nachricht an ${partner?.name?.split(" ")[0] || "…"} …` : "Nachricht an Rebekka …")}
               style={{ background: `${C.charcoal}33`, borderColor: `${C.charcoal}66` }}
-              className="flex-1 border rounded-xl px-4 py-3 text-base text-white placeholder:opacity-70 focus:outline-none" />
+              className="flex-1 min-w-0 border rounded-xl px-4 py-3 text-base text-white placeholder:opacity-70 focus:outline-none" />
             {/* preventDefault: Tippen auf Senden nimmt dem Eingabefeld nicht den Fokus → Tastatur bleibt offen */}
-            <button type="button" onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={send} disabled={!text.trim()}
+            <button type="button" onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={send} disabled={(!text.trim() && !attachment) || sending}
               style={{ background: C.gold }} className="p-3 rounded-xl text-white hover:opacity-90 active:scale-95 transition disabled:opacity-40" aria-label="Senden">
-              <Send className="w-5 h-5" />
+              {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
             </button>
           </div>
         </div>
       )}
       {emojiTarget && <EmojiPicker onSelect={handleEmojiPick} onClose={() => setEmojiTarget(null)} />}
+      {lightbox && (
+        <AppOverlay className="z-50 bg-black flex items-center justify-center" onClick={() => setLightbox(null)} role="dialog" aria-modal="true">
+          <img src={lightbox} alt="Foto" className="max-w-full max-h-full object-contain" />
+          <button type="button" onClick={() => setLightbox(null)} aria-label="Schließen"
+            style={{ top: "max(0.75rem, env(safe-area-inset-top))" }}
+            className="absolute right-3 w-10 h-10 rounded-full bg-white/15 text-white flex items-center justify-center active:scale-95 transition">
+            <X className="w-5 h-5" />
+          </button>
+        </AppOverlay>
+      )}
     </div>
   );
 }

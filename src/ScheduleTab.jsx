@@ -127,7 +127,7 @@ export function ScheduleTab({ schedule, docs = [], onOpenDoc, isAdmin = false, o
       <div className="border-b pb-4 space-y-3" style={{ borderColor: `${C.charcoal}33` }}>
         <div>
           <Label>Reiseplan • Taiwan 2026</Label>
-          <h2 className="text-5xl font-black tracking-tighter uppercase mt-1 leading-[0.95]">Ihr <span style={{ color: C.gold }}>Programm</span></h2>
+          <h2 className="text-5xl font-black tracking-tighter uppercase mt-1 leading-[0.95]">Dein <span style={{ color: C.gold }}>Programm</span></h2>
         </div>
         {isAdmin && (
           <button onClick={() => setEditing({ mode: "add" })} aria-label="Termin hinzufügen"

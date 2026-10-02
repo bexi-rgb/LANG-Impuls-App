@@ -73,14 +73,14 @@ export default async function handler(req, res) {
     const senderName = caller?.name || 'Jemand';
     if (msg.channel === 'group') {
       recipients = travelers.filter((t) => t.id !== callerId).map((t) => t.id);
-      payload = { title: `Gruppenchat · ${senderName}`, body: truncate(msg.text, 180), tab: 'chat', channel: 'group', tag: 'group' };
+      payload = { title: `Gruppenchat · ${senderName}`, body: truncate(msg.text || '📷 Foto', 180), tab: 'chat', channel: 'group', tag: 'group', sender: senderName };
     } else if (msg.channel.startsWith('direct:')) {
       const travelerId = msg.channel.slice('direct:'.length);
       // Reisender schreibt → an alle Admins; Admin schreibt → an den Reisenden
       recipients = travelerId === callerId
         ? travelers.filter((t) => t.role === 'admin' && t.id !== callerId).map((t) => t.id)
         : [travelerId];
-      payload = { title: senderName, body: truncate(msg.text, 180), tab: 'chat', channel: msg.channel, tag: msg.channel };
+      payload = { title: senderName, body: truncate(msg.text || '📷 Foto', 180), tab: 'chat', channel: msg.channel, tag: msg.channel, sender: senderName };
     }
   } else if (kind === 'reaction') {
     const { data: msg, error } = await admin.from('messages').select('channel, sender_id, text, reactions').eq('id', id).single();
@@ -92,7 +92,7 @@ export default async function handler(req, res) {
       recipients = [msg.sender_id];
       payload = {
         title: `${firstName} hat reagiert ${emoji}`,
-        body: `${firstName} hat mit ${emoji} auf Ihre Nachricht reagiert: „${truncate(msg.text, 120)}“`,
+        body: `${firstName} hat mit ${emoji} auf deine Nachricht reagiert: „${truncate(msg.text || 'Foto', 120)}“`,
         tab: 'chat', channel: msg.channel, tag: `reaction-${id}`,
       };
     }

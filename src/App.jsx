@@ -13,7 +13,8 @@ import {
   updateTravelerAccount, deleteTravelerAccount,
   insertRow, updateRow, deleteRow, useCollection, uploadFile, getPublicUrl, setConfig, signOut,
 } from './lib/supabase.js';
-import { syncPush, disablePush, triggerPush } from './lib/push.js';
+import { syncPush, disablePush, triggerPush, clearShownNotifications } from './lib/push.js';
+import { fileToDataUrl } from './lib/image.js';
 import { HomeTab } from './HomeTab.jsx';
 import { ScheduleTab } from './ScheduleTab.jsx';
 import { DocumentsTab } from './DocumentsTab.jsx';
@@ -22,7 +23,7 @@ import { PhotosTab } from './PhotosTab.jsx';
 import { AdminTab } from './AdminTab.jsx';
 
 const DEFAULT_NOTIFICATIONS = [
-  "Willkommen bei Ihrem IMPULS Reise-Concierge! Ihre Unterlagen für Taiwan 2026 sind vollständig.",
+  "Willkommen bei deinem IMPULS Reise-Concierge! Deine Unterlagen für Taiwan 2026 sind vollständig.",
   "Flug CI 062: Status aktualisiert auf PÜNKTLICH.",
 ];
 
@@ -46,7 +47,7 @@ export default function App() {
   const [reactionOverrides, setReactionOverrides] = useState({});
   useEffect(() => { setReactionOverrides({}); }, [messagesRemote]);
   const messages = isSupabaseConfigured
-    ? messagesRemote.map((m) => ({ id: m.id, channel: m.channel, senderId: m.sender_id, text: m.text, status: m.status, time: shortTime(m.created_at), reactions: reactionOverrides[m.id] || m.reactions || {} }))
+    ? messagesRemote.map((m) => ({ id: m.id, channel: m.channel, senderId: m.sender_id, text: m.text, image: m.image_path ? getPublicUrl('photos', m.image_path) : null, status: m.status, time: shortTime(m.created_at), reactions: reactionOverrides[m.id] || m.reactions || {} }))
     : messagesLocal;
 
   const [photosLocal, setPhotosLocal] = usePersistentState('photos', INITIAL_PHOTOS);
@@ -112,10 +113,13 @@ export default function App() {
   // iOS hält die Home-Screen-App im Hintergrund eingefroren → beim erneuten
   // Öffnen stünde sonst noch der zuletzt genutzte Tab da. Nach längerer
   // Abwesenheit wieder auf Start (kurze Wechsel, z.B. zur Kamera, bleiben).
+  // Beim Öffnen außerdem liegengebliebene Push-Benachrichtigungen wegräumen.
   useEffect(() => {
     let hiddenAt = 0;
+    clearShownNotifications();
     const onVis = () => {
       if (document.hidden) { hiddenAt = Date.now(); return; }
+      clearShownNotifications();
       if (hiddenAt && Date.now() - hiddenAt > 5 * 60 * 1000) setTab("home");
     };
     document.addEventListener('visibilitychange', onVis);
@@ -186,8 +190,16 @@ export default function App() {
 
   const now = () => new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 
-  const sendMessage = (text, channel) => {
+  // imageFile optional (bereits verkleinert). Mit Bild: Promise wird bei Fehler abgelehnt,
+  // damit der Chat den Fehler anzeigen und das Bild zum erneuten Senden behalten kann.
+  const sendMessage = async (text, channel, imageFile = null) => {
     if (isSupabaseConfigured) {
+      if (imageFile) {
+        const { path } = await uploadFile('photos', imageFile, `chat/${user.id}`);
+        const row = await insertRow('messages', { channel, sender_id: user.id, text, image_path: path });
+        triggerPush('message', row?.id);
+        return;
+      }
       insertRow('messages', { channel, sender_id: user.id, text })
         .then((row) => triggerPush('message', row?.id))
         .catch((e) => console.warn('[message]', e.message));
@@ -195,7 +207,8 @@ export default function App() {
       return;
     }
     const senderId = user?.role === "admin" ? "admin" : user?.id;
-    setMessagesLocal((m) => [...m, { id: `m${Date.now()}`, channel, senderId, text, time: now(), status: "read" }]);
+    const image = imageFile ? await fileToDataUrl(imageFile) : null;
+    setMessagesLocal((m) => [...m, { id: `m${Date.now()}`, channel, senderId, text, image, time: now(), status: "read" }]);
     if (user?.role !== "admin" && channel === `direct:${user.id}`) {
       setTyping(true);
       setTimeout(() => {

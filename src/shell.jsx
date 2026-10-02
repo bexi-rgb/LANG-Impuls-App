@@ -1,6 +1,7 @@
 /* Chrome-Komponenten: Rahmen, Header, Nav, Login, Primitiven, geteilte Modals. */
 
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Wifi, Signal, Battery, Home, Calendar, CalendarDays, FileText, MessageCircle, MessageSquare,
   Camera, ImageIcon, ShieldAlert, LogOut, LogIn, User, Key, Bell, ChevronDown, ChevronRight,
@@ -150,6 +151,17 @@ export function PhoneFrame({ children }) {
 
 
 
+// Vollbild-Ebene (Foto-Ansicht, Bild-Vorschau): wird direkt in #app-screen gerendert
+// statt `fixed` am Layout-Viewport zu hängen — sonst schiebt die iOS-Tastatur die
+// Kopfzeile mit dem Schließen-Button aus dem sichtbaren Bereich.
+export function AppOverlay({ className = "", children, ...rest }) {
+  const target = document.getElementById('app-screen');
+  const node = (
+    <div className={`${target ? "absolute" : "fixed"} inset-0 ${className}`} {...rest}>{children}</div>
+  );
+  return target ? createPortal(node, target) : node;
+}
+
 /* ── Small shared pieces ───────────────────────────────────────── */
 export const Label = ({ children }) => (
   <span style={{ color: C.gold, fontFamily: MONO, letterSpacing: "0.25em" }} className="text-[14px] font-extrabold uppercase block">{children}</span>
@@ -256,7 +268,7 @@ export function LoginView({ travelers, onLogin, isSupabaseConfigured = false, on
           <div style={{ background: C.gold }} className="inline-block px-6 py-4 rounded-2xl shadow-xl"><Logo /></div>
           <Label>Exklusiver Reise-Concierge</Label>
           <h2 className="text-3xl font-extrabold tracking-tight uppercase">Taiwan Expedition 2026</h2>
-          <p style={{ color: C.silver }} className="text-sm font-light max-w-sm mx-auto">Bitte melden Sie sich an, um auf Ihre persönlichen Reisedokumente, den Concierge-Chat und Reise-Updates zuzugreifen.</p>
+          <p style={{ color: C.silver }} className="text-sm font-light max-w-sm mx-auto">Bitte melde dich an, um auf deine persönlichen Reisedokumente, den Concierge-Chat und Reise-Updates zuzugreifen.</p>
         </div>
         <div style={{ background: C.surface, borderColor: `${C.charcoal}4d` }} className="border rounded-2xl p-6 shadow-2xl">
           <div className="space-y-4">

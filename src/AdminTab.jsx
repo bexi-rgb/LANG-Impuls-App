@@ -54,7 +54,7 @@ export function AdminTab({ travelers, docs = [], onBroadcast, onToggleStatus, on
       <div className="border-b pb-5" style={{ borderColor: `${C.charcoal}33` }}>
         <Label>Control Panel</Label>
         <h2 className="text-5xl font-black tracking-tighter uppercase mt-1">Admin <span style={{ color: C.gold }}>Overview</span></h2>
-        <p style={{ color: C.silver }} className="text-sm mt-2 font-light max-w-xl">Verwalten Sie Reisende, legen Sie neue Konten an und senden Sie Broadcasts für Taiwan 2026.</p>
+        <p style={{ color: C.silver }} className="text-sm mt-2 font-light max-w-xl">Verwalte Reisende, lege neue Konten an und sende Broadcasts für Taiwan 2026.</p>
       </div>
 
       <div className="grid gap-6">

@@ -317,7 +317,7 @@ export function HotelDetailView({ hotel, personal, onClose }) {
                 <Key className="w-5 h-5 text-white" />
               </div>
               <div className="min-w-0 flex-1">
-                <p style={{ color: C.silver, letterSpacing: "0.14em" }} className="text-[10px] font-black uppercase">Ihr Zimmer</p>
+                <p style={{ color: C.silver, letterSpacing: "0.14em" }} className="text-[10px] font-black uppercase">Dein Zimmer</p>
                 <div className="flex items-baseline gap-2 flex-wrap">
                   <span style={{ fontFamily: MONO }} className="text-2xl font-black">{personal.room}</span>
                   {personal.roomType && <span style={{ color: C.silver }} className="text-sm font-semibold truncate">{personal.roomType}</span>}
@@ -942,13 +942,13 @@ export function HomeTab({ setTab, broadcasts, messages, travelers = [], schedule
           </button>
         </div>
         {preview.length === 0 && (
-          <p style={{ color: C.silver }} className="text-sm">Noch keine Nachrichten. Schreiben Sie Rebekka gerne jederzeit.</p>
+          <p style={{ color: C.silver }} className="text-sm">Noch keine Nachrichten. Schreib Rebekka gerne jederzeit.</p>
         )}
         {preview.map((m) => (
           <p key={m.id} style={{ color: C.silver }} className="text-sm leading-relaxed border-l-2 pl-3">
             <span style={{ color: m.senderId === user.id ? C.gold : C.white }} className="font-bold">
-              {m.senderId === user.id ? "Sie" : (m.senderId === "admin" || travelers.find((t) => t.id === m.senderId)?.role === "admin" ? "Rebekka" : (travelers.find((t) => t.id === m.senderId)?.name || "Gruppe"))}:{" "}
-            </span>{m.text}
+              {m.senderId === user.id ? "Du" : (m.senderId === "admin" || travelers.find((t) => t.id === m.senderId)?.role === "admin" ? "Rebekka" : (travelers.find((t) => t.id === m.senderId)?.name || "Gruppe"))}:{" "}
+            </span>{m.text || "📷 Foto"}
           </p>
         ))}
       </div>

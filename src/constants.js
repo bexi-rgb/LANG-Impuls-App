@@ -94,7 +94,7 @@ export const INITIAL_HOME_TILES = [
           title: "Fitnesscenter Club Oasis",
           location: "5. Etage",
           hours: "24 Stunden geöffnet • Personal 05:30–23:00",
-          notes: "Zutritt mit Ihrer Zimmerkarte. Modernste Geräte, Sauna und Dampfbad. Yoga- und Fitness-Kurse verfügbar.",
+          notes: "Zutritt mit deiner Zimmerkarte. Modernste Geräte, Sauna und Dampfbad. Yoga- und Fitness-Kurse verfügbar.",
         },
         {
           id: "a-pool", icon: "waves",
@@ -320,14 +320,14 @@ export const SUGGESTED_TAGS = ["Natur", "Essen", "Kultur", "Stadt", "Architektur
 
 export const INITIAL_MESSAGES = [
   // Elena ↔ Rebekka (direkt)
-  { id: "m1", channel: "direct:t1", senderId: "admin", text: "Guten Tag Elena! Ich bin Rebekka, Ihr persönlicher IMPULS Reise-Concierge. Ihre Unterlagen für Taiwan sind vollständig. Wie kann ich behilflich sein?", time: "09:12" },
+  { id: "m1", channel: "direct:t1", senderId: "admin", text: "Hallo Elena! Ich bin Rebekka, deine persönliche IMPULS Reise-Concierge. Deine Unterlagen für Taiwan sind vollständig. Wie kann ich dir helfen?", time: "09:12" },
   { id: "m2", channel: "direct:t1", senderId: "t1", text: "Ist im Transfer genug Platz für drei Koffer?", time: "09:14", status: "read" },
-  { id: "m3", channel: "direct:t1", senderId: "admin", text: "Ja, absolut. Wir haben einen Premium-SUV für Ihren Transfer reserviert, der über ausreichend Stauraum verfügt. Benötigen Sie zusätzlich Unterstützung beim Check-in?", time: "09:15" },
+  { id: "m3", channel: "direct:t1", senderId: "admin", text: "Ja, absolut. Wir haben einen Premium-SUV für deinen Transfer reserviert, der über ausreichend Stauraum verfügt. Brauchst du zusätzlich Unterstützung beim Check-in?", time: "09:15" },
   // Marco ↔ Rebekka (direkt)
-  { id: "m4", channel: "direct:t2", senderId: "admin", text: "Herzlich willkommen Marco! Mir fehlt noch Ihre Reisepass-Kopie – bitte laden Sie diese im Bereich „Dateien\u201C hoch, sobald möglich.", time: "10:02" },
+  { id: "m4", channel: "direct:t2", senderId: "admin", text: "Herzlich willkommen Marco! Mir fehlt noch deine Reisepass-Kopie – bitte lade sie im Bereich „Dateien\u201C hoch, sobald möglich.", time: "10:02" },
   { id: "m5", channel: "direct:t2", senderId: "t2", text: "Alles klar, mache ich heute Abend.", time: "10:07", status: "read" },
   // Gruppenchat
-  { id: "g1", channel: "group", senderId: "admin", text: "Willkommen im Gruppenchat der Taiwan Expedition 2026 🌏 Hier erhalten Sie alle Reise-Updates und können sich untereinander austauschen.", time: "08:45" },
+  { id: "g1", channel: "group", senderId: "admin", text: "Willkommen im Gruppenchat der Taiwan Expedition 2026 🌏 Hier bekommt ihr alle Reise-Updates und könnt euch untereinander austauschen.", time: "08:45" },
   { id: "g2", channel: "group", senderId: "t1", text: "Freue mich sehr! Hat schon jemand Restaurant-Empfehlungen für den ersten Abend?", time: "08:52", status: "read" },
   { id: "g3", channel: "group", senderId: "t2", text: "Din Tai Fung ist Pflicht 🥟", time: "08:55", status: "read" },
 ];
@@ -335,11 +335,11 @@ export const INITIAL_MESSAGES = [
 /* mirrors the Gemini fallback logic in server.ts */
 export function conciergeReply(msg) {
   const l = msg.toLowerCase();
-  if (l.includes("koffer")) return "Ja, absolut. Der reservierte Premium-SUV verfügt über ausreichend Stauraum. Benötigen Sie zusätzlich Unterstützung beim Check-in?";
-  if (l.includes("apotheke")) return "Natürlich, gar kein Problem. Ihr Fahrer hält auf dem Weg vom Flughafen zum Grand Hyatt Taipei an einer gut sortierten Apotheke.";
+  if (l.includes("koffer")) return "Ja, absolut. Der reservierte Premium-SUV verfügt über ausreichend Stauraum. Brauchst du zusätzlich Unterstützung beim Check-in?";
+  if (l.includes("apotheke")) return "Natürlich, gar kein Problem. Dein Fahrer hält auf dem Weg vom Flughafen zum Grand Hyatt Taipei an einer gut sortierten Apotheke.";
   if (l.includes("wetter")) return "Das Wetter in Taipeh ist derzeit angenehm warm mit ca. 24 °C und leichter Bewölkung. Perfektes Reisewetter!";
-  if (l.includes("hotel") || l.includes("hyatt")) return "Sie wohnen im Grand Hyatt Taipei, 5 Nächte ab dem 06. Nov. Early Check-in habe ich bereits für Sie angefragt.";
-  if (l.includes("flug")) return "Ihr Hinflug IM882 startet am 05. Nov um 10:35 Uhr ab Frankfurt — Status: PÜNKTLICH. Ich informiere Sie sofort bei Änderungen.";
-  return "Vielen Dank für Ihre Nachricht. Ich kümmere mich umgehend darum und stehe Ihnen jederzeit zur Verfügung, um Ihre Taiwan-Reise unvergesslich zu machen. (Vorschau-Modus: Im echten Betrieb antwortet hier Gemini.)";
+  if (l.includes("hotel") || l.includes("hyatt")) return "Du wohnst im Grand Hyatt Taipei, 5 Nächte ab dem 06. Nov. Early Check-in habe ich bereits für dich angefragt.";
+  if (l.includes("flug")) return "Dein Hinflug IM882 startet am 05. Nov um 10:35 Uhr ab Frankfurt — Status: PÜNKTLICH. Ich informiere dich sofort bei Änderungen.";
+  return "Vielen Dank für deine Nachricht. Ich kümmere mich umgehend darum und stehe dir jederzeit zur Verfügung, um deine Taiwan-Reise unvergesslich zu machen. (Vorschau-Modus: Im echten Betrieb antwortet hier Gemini.)";
 }
 
