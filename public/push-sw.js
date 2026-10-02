@@ -5,6 +5,10 @@
  */
 
 const MAX_LINES = 4; // so viele letzte Nachrichten zeigt eine gebündelte Benachrichtigung
+// iOS kann bereits angezeigte Web-Push-Benachrichtigungen nicht entfernen (close() und
+// `tag`-Ersetzen wirken dort nicht) → Bündeln würde nur zusätzliche Benachrichtigungen
+// erzeugen. Auf iOS daher eine pro Nachricht; iOS stapelt sie selbst pro App.
+const IS_IOS = /iPhone|iPad|iPod/.test(self.navigator.userAgent);
 
 self.addEventListener('push', (event) => {
   let data = {};
@@ -21,7 +25,7 @@ self.addEventListener('push', (event) => {
     // Chat-Nachrichten bündeln: noch sichtbare Benachrichtigungen derselben Unterhaltung
     // einsammeln, schließen und als eine zusammengefasste Benachrichtigung neu zeigen.
     // (Android ersetzt per `tag` ohnehin — iOS stapelt sonst jede Nachricht einzeln.)
-    if (data.tag && data.sender) {
+    if (data.tag && data.sender && !IS_IOS) {
       const previous = await self.registration.getNotifications({ tag: data.tag }).catch(() => []);
       for (const n of previous) {
         count += n.data?.count || 1;
