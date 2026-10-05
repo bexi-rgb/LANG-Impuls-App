@@ -239,6 +239,9 @@ export function countdownLabel(e) {
 }
 
 /* Add-to-calendar (.ics) export — works with Apple/Google/Outlook calendars */
+// Ort in Google Maps öffnen (auf dem Handy öffnet sich die Maps-App, falls installiert)
+export const mapsUrl = (q) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+
 export function icsStamp(dateStr, timeStr) { return `${dateStr.replace(/-/g, "")}T${timeStr.replace(":", "")}00`; }
 export function downloadICS(ev) {
   const startTime = ev.time || "09:00";

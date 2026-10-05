@@ -8,7 +8,7 @@ import {
   Sun, Cloud, CloudSun, CloudRain, CloudSnow, CloudFog, CloudLightning, CloudDrizzle,
   Droplets, Wind, RefreshCw, AlertCircle, Coins, ArrowLeftRight, Delete, Check,
 } from 'lucide-react';
-import { C, MONO, TYPE_META, evDate, fmtDayShort, fmtDayLong, countdownLabel } from './constants.js';
+import { C, MONO, TYPE_META, evDate, fmtDayShort, fmtDayLong, countdownLabel, mapsUrl } from './constants.js';
 import { PushPrompt } from './PushPrompt.jsx';
 import { Label, EditPencil, HomeSectionEditModal } from './shell.jsx';
 import { useWeather, WEATHER_LOCATIONS, describeWeather, formatFetchedAt } from './api/weather.js';
@@ -34,7 +34,12 @@ export function NextUpCard({ schedule, onOpenDoc, onOpenPlan }) {
         <div className="min-w-0">
           <p style={{ fontFamily: MONO, color: C.gold }} className="text-sm font-bold tracking-widest">{fmtDayShort(next.date).toUpperCase()} • {next.time} UHR</p>
           <p className="text-xl font-black leading-tight mt-0.5">{next.title}</p>
-          {next.location && <p style={{ color: C.silver }} className="text-sm mt-1 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 shrink-0" style={{ color: C.gold }} />{next.location}</p>}
+          {next.location && (
+            <a href={mapsUrl(next.location)} target="_blank" rel="noopener noreferrer" style={{ color: C.silver }}
+              className="text-sm mt-1 flex items-center gap-1.5 underline decoration-dotted underline-offset-2 hover:text-white active:opacity-70">
+              <MapPin className="w-3.5 h-3.5 shrink-0" style={{ color: C.gold }} />{next.location}
+            </a>
+          )}
         </div>
       </div>
       <div className="flex gap-2 pt-1 relative flex-wrap">

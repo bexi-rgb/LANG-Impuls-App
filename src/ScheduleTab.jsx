@@ -4,8 +4,8 @@ import {
   Utensils, Landmark, Plus, Edit3, Check, X, Trash2, Download, ArrowRight,
   ChevronLeft, ChevronRight, QrCode,
 } from 'lucide-react';
-import { C, MONO, TRIP_DAYS, TYPE_META, evDate, fmtDayLong, fmtDayShort, downloadICS } from './constants.js';
-import { Label } from './shell.jsx';
+import { C, MONO, TRIP_DAYS, TYPE_META, evDate, fmtDayLong, fmtDayShort, downloadICS, mapsUrl } from './constants.js';
+import { Label, AppOverlay } from './shell.jsx';
 
 export function ScheduleEventModal({ initial, defaultDate, docs = [], onSave, onDelete, onClose }) {
   const isEdit = !!initial?.id;
@@ -39,10 +39,22 @@ export function ScheduleEventModal({ initial, defaultDate, docs = [], onSave, on
     }
   };
 
+  // Fokussiertes Feld im Sheet sichtbar halten, sobald die Tastatur den Platz verkleinert hat
+  const keepVisible = (e) => {
+    const el = e.target;
+    setTimeout(() => el.scrollIntoView({ block: "nearest" }), 350);
+  };
+
+  // AppOverlay statt `fixed`: hängt am sichtbaren Bereich (#app-screen), der beim Öffnen
+  // der Tastatur mitschrumpft — sonst rutscht das Sheet hinter die iOS-Tastatur.
+  // Pointer-Events nicht zum Tageswechsel-Wischen der ScheduleTab durchreichen.
+  const stop = (e) => e.stopPropagation();
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: C.surfaceHigh, borderColor: `${C.charcoal}66` }}
-        className="w-full max-w-md border-t rounded-t-3xl p-5 space-y-4 fadeup max-h-[92%] overflow-y-auto">
+    <AppOverlay className="z-40 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }}
+      onClick={onClose} onPointerDown={stop} onPointerUp={stop}>
+      <div onClick={(e) => e.stopPropagation()} onFocus={keepVisible}
+        style={{ background: C.surfaceHigh, borderColor: `${C.charcoal}66`, paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom))" }}
+        className="w-full max-w-md border-t rounded-t-3xl p-5 space-y-4 fadeup max-h-[92%] overflow-y-auto overscroll-contain">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CalendarDays className="w-5 h-5" style={{ color: C.gold }} />
@@ -103,7 +115,7 @@ export function ScheduleEventModal({ initial, defaultDate, docs = [], onSave, on
           </button>
         </div>
       </div>
-    </div>
+    </AppOverlay>
   );
 }
 
@@ -201,7 +213,12 @@ export function ScheduleTab({ schedule, docs = [], onOpenDoc, isAdmin = false, o
                     )}
                   </div>
                 </div>
-                {e.location && <p style={{ color: C.silver }} className="text-sm mt-1 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 shrink-0 opacity-80" />{e.location}</p>}
+                {e.location && (
+                  <a href={mapsUrl(e.location)} target="_blank" rel="noopener noreferrer" style={{ color: C.silver }}
+                    className="text-sm mt-1 flex items-center gap-1.5 underline decoration-dotted underline-offset-2 hover:text-white active:opacity-70">
+                    <MapPin className="w-3.5 h-3.5 shrink-0 opacity-80" />{e.location}
+                  </a>
+                )}
                 <div className="flex items-center gap-4 flex-wrap">
                   {e.docId && (
                     <button onClick={() => onOpenDoc(e.docId)} style={{ color: C.gold, letterSpacing: "0.1em" }}
