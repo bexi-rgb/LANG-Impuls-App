@@ -314,7 +314,7 @@ export function Header({ notifications, onClear, user, onLogout, onUpdateAvatar 
     e.target.value = "";
   };
   return (
-    <header style={{ background: C.gold, paddingTop: "env(safe-area-inset-top)" }} className="relative shrink-0 z-30 flex justify-between items-center px-4 min-h-14 shadow-lg">
+    <header style={{ background: C.gold, paddingTop: "var(--sat, env(safe-area-inset-top))" }} className="relative shrink-0 z-30 flex justify-between items-center px-4 min-h-14 shadow-lg">
       <div className="flex items-center gap-3">
         <input type="file" accept="image/*" ref={fileRef} onChange={pickAvatar} className="hidden" />
         <button onClick={() => fileRef.current?.click()} className="active:scale-95 transition" title="Profilbild ändern" aria-label="Profilbild ändern">

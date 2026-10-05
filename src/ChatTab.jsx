@@ -428,7 +428,7 @@ export function ChatTab({ user, focus, travelers, messages, onSend, typing, onTo
         <AppOverlay className="z-50 bg-black flex items-center justify-center" onClick={() => setLightbox(null)} role="dialog" aria-modal="true">
           <img src={lightbox} alt="Foto" className="max-w-full max-h-full object-contain" />
           <button type="button" onClick={() => setLightbox(null)} aria-label="Schließen"
-            style={{ top: "max(0.75rem, env(safe-area-inset-top))" }}
+            style={{ top: "max(0.75rem, var(--sat, env(safe-area-inset-top)))" }}
             className="absolute right-3 w-10 h-10 rounded-full bg-white/15 text-white flex items-center justify-center active:scale-95 transition">
             <X className="w-5 h-5" />
           </button>

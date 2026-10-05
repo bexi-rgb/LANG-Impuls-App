@@ -343,7 +343,7 @@ function PhotoViewer({ photos, index, onIndexChange, onClose, onTagClick, onComm
   return (
     <AppOverlay className="z-50 bg-black flex flex-col" role="dialog" aria-modal="true">
       {/* Top-Bar */}
-      <div className="flex items-center justify-between gap-2 px-3 py-2.5 shrink-0" style={{ background: "rgba(0,0,0,0.85)", paddingTop: "max(0.625rem, env(safe-area-inset-top))" }}>
+      <div className="flex items-center justify-between gap-2 px-3 py-2.5 shrink-0" style={{ background: "rgba(0,0,0,0.85)", paddingTop: "max(0.625rem, var(--sat, env(safe-area-inset-top)))" }}>
         <button onClick={onClose} style={{ letterSpacing: "0.1em" }}
           className="flex items-center gap-1 pl-1.5 pr-3 py-2 bg-white/15 rounded-full text-white text-[12px] font-black uppercase active:scale-95 transition" aria-label="Zurück zur Galerie">
           <ChevronLeft className="w-5 h-5" /> Galerie

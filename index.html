@@ -30,6 +30,25 @@
         window.addEventListener('resize', setH);
         window.addEventListener('orientationchange', setH);
       })();
+
+      // Statusleisten-Abstand oben (--sat): iOS 26 (v.a. Safari) legt die Seite unter
+      // die Statusleiste, meldet aber env(safe-area-inset-top) = 0 → Kopfzeilen und
+      // Zurück-Buttons verschwinden hinter Uhrzeit/Dynamic Island. Reicht die Seite
+      // praktisch bis zur vollen Bildschirmhöhe, liegt die Statusleiste zwangsläufig
+      // darüber → Mindestabstand passend zur Geräteklasse erzwingen.
+      (function () {
+        if (!/iPhone|iPod/.test(navigator.userAgent)) return;
+        function setSat() {
+          var portrait = window.innerHeight >= window.innerWidth;
+          var screenH = Math.max(screen.width, screen.height);
+          var underStatusBar = portrait && window.innerHeight >= screenH - 40;
+          var min = !underStatusBar ? 0 : screenH >= 852 ? 59 : screenH >= 812 ? 47 : 20;
+          document.documentElement.style.setProperty('--sat', 'max(env(safe-area-inset-top), ' + min + 'px)');
+        }
+        setSat();
+        window.addEventListener('resize', setSat);
+        window.addEventListener('orientationchange', setSat);
+      })();
     </script>
   </head>
   <body>
