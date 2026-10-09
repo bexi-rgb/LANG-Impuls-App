@@ -11,7 +11,7 @@ import { usePersistentState, loadValue, saveValue, removeValue, clearAll } from 
 import {
   isSupabaseConfigured, useSession, signInWithPassword, createTravelerAccount,
   updateTravelerAccount, deleteTravelerAccount,
-  insertRow, updateRow, deleteRow, useCollection, uploadFile, getPublicUrl, setConfig, signOut,
+  insertRow, updateRow, deleteRow, useCollection, uploadFile, deleteFile, getPublicUrl, setConfig, signOut,
 } from './lib/supabase.js';
 import { syncPush, disablePush, triggerPush, clearShownNotifications } from './lib/push.js';
 import { fileToDataUrl } from './lib/image.js';
@@ -57,6 +57,7 @@ export default function App() {
     ? photosRemote.map((p) => ({
         id: p.id,
         image: getPublicUrl('photos', p.image_path),
+        imagePath: p.image_path,
         title: p.title,
         author: travelers.find((t) => t.id === p.author_id)?.name || 'Unbekannt',
         authorId: p.author_id,
@@ -307,6 +308,15 @@ export default function App() {
     setNotifications((n) => [`${photo.author} hat ein Foto geteilt: „${photo.title}\u201C`, ...n]);
   };
 
+  const deletePhoto = async (photo) => {
+    if (isSupabaseConfigured) {
+      await deleteRow('photos', photo.id);
+      if (photo.imagePath) deleteFile('photos', photo.imagePath).catch((e) => console.warn('[photo]', e.message));
+      return;
+    }
+    setPhotosLocal((ps) => ps.filter((p) => p.id !== photo.id));
+  };
+
   const updateTile = (id, data) => {
     if (isSupabaseConfigured) {
       const t = homeTiles.find((x) => x.id === id);
@@ -493,7 +503,7 @@ export default function App() {
           {tab === "schedule" && <ScheduleTab schedule={schedule} docs={docs} onOpenDoc={openDoc} isAdmin={user.role === "admin"} onAddEvent={addEvent} onUpdateEvent={updateEvent} onDeleteEvent={deleteEvent} />}
           {tab === "documents" && <DocumentsTab user={user} docs={docs} travelers={travelers} focusId={docFocus} onAddDoc={addDoc} />}
           {tab === "chat" && <ChatTab user={user} focus={chatFocus} travelers={travelers} messages={messages} onSend={sendMessage} typing={typing} onToggleReaction={toggleReaction} />}
-          {tab === "photos" && <PhotosTab photos={photos} user={user} onComment={addComment} onShare={sharePhoto} />}
+          {tab === "photos" && <PhotosTab photos={photos} user={user} onComment={addComment} onShare={sharePhoto} onDelete={deletePhoto} />}
           {tab === "admin" && user.role === "admin" && <AdminTab travelers={travelers} docs={docs} onBroadcast={broadcast} onToggleStatus={toggleTravelerStatus} onAddTraveler={addTraveler} onEditTraveler={editTraveler} onDeleteTraveler={removeTraveler} onAddEvent={addEvent} onResetData={resetPreviewData} />}
         </main>
         <BottomNav tab={tab} setTab={setTab} isAdmin={user.role === "admin"} />

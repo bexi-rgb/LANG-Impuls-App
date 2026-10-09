@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Camera, Image as ImageIcon, MessageCircle, Send, X, Plus,
-  ChevronLeft, ChevronRight, SwitchCamera,
+  ChevronLeft, ChevronRight, SwitchCamera, Trash2,
 } from 'lucide-react';
 import { C, MONO, SUGGESTED_TAGS, PHOTO_GRADIENTS } from './constants.js';
 import { AppOverlay } from './shell.jsx';
@@ -185,7 +185,7 @@ export function SharePhotoModal({ user, onClose, onShare }) {
   );
 }
 
-export function PhotosTab({ photos, user, onComment, onShare }) {
+export function PhotosTab({ photos, user, onComment, onShare, onDelete }) {
   const [selectedIdx, setSelectedIdx] = useState(null);
   const [activeTag, setActiveTag] = useState(null);
   const [sharing, setSharing] = useState(false);
@@ -193,6 +193,19 @@ export function PhotosTab({ photos, user, onComment, onShare }) {
   const allTags = Array.from(new Set(photos.flatMap((p) => p.tags || []))).sort();
   const shown = activeTag ? photos.filter((p) => (p.tags || []).includes(activeTag)) : photos;
   const sel = selectedIdx !== null ? shown[selectedIdx] : null;
+  const canDelete = (p) => user.role === "admin" || (p.authorId ? p.authorId === user.id : p.author === user.name);
+
+  const deletePhoto = async (p) => {
+    if (!window.confirm(`Foto „${p.title}" wirklich löschen?`)) return;
+    try {
+      await onDelete(p);
+    } catch (e) {
+      window.alert(`Löschen fehlgeschlagen: ${e.message}`);
+      return;
+    }
+    if (shown.length <= 1) setSelectedIdx(null);
+    else if (selectedIdx >= shown.length - 1) setSelectedIdx(shown.length - 2);
+  };
 
   return (
     <div className="space-y-4 fadeup p-4 pb-6">
@@ -253,6 +266,7 @@ export function PhotosTab({ photos, user, onComment, onShare }) {
           onIndexChange={setSelectedIdx}
           onClose={() => setSelectedIdx(null)}
           onTagClick={(t) => { setActiveTag(t); setSelectedIdx(null); }}
+          onDelete={canDelete(sel) ? () => deletePhoto(sel) : null}
           onComment={(text) => {
             onComment(sel.id, { id: `c${Date.now()}`, author: user.name, text, time: "gerade eben" });
           }}
@@ -292,7 +306,7 @@ function FilterPill({ selected, onClick, children }) {
   );
 }
 
-function PhotoViewer({ photos, index, onIndexChange, onClose, onTagClick, onComment }) {
+function PhotoViewer({ photos, index, onIndexChange, onClose, onTagClick, onComment, onDelete }) {
   const [comment, setComment] = useState("");
   const [drag, setDrag] = useState({ x: 0, dragging: false });
   const startX = useRef(null);
@@ -351,7 +365,14 @@ function PhotoViewer({ photos, index, onIndexChange, onClose, onTagClick, onComm
         <span style={{ fontFamily: MONO, letterSpacing: "0.15em" }} className="text-[12px] font-bold text-white/80 uppercase">
           {index + 1} / {photos.length}
         </span>
-        <div className="w-[104px]" />
+        <div className="w-[104px] flex justify-end">
+          {onDelete && (
+            <button onClick={onDelete}
+              className="p-2.5 bg-white/15 rounded-full text-white hover:bg-red-500/80 active:scale-95 transition" aria-label="Foto löschen">
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Bild-Bereich */}
