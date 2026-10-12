@@ -78,7 +78,12 @@ export default function App() {
   const [scheduleLocal, setScheduleLocal] = usePersistentState('schedule', INITIAL_SCHEDULE);
   const { data: scheduleRemote } = useCollection('schedule', { orderBy: 'date' });
   const schedule = isSupabaseConfigured
-    ? scheduleRemote.map((e) => ({ id: e.id, date: e.date, time: (e.time || '').slice(0, 5), title: e.title, location: e.location || undefined, type: e.type, docId: e.doc_id || undefined }))
+    ? scheduleRemote.map((e) => ({
+        id: e.id, date: e.date, time: (e.time || '').slice(0, 5), title: e.title, location: e.location || undefined, type: e.type, docId: e.doc_id || undefined,
+        menuPath: e.menu_path || undefined, menu: e.menu_path ? getPublicUrl('photos', e.menu_path) : undefined,
+        sponsorName: e.sponsor_name || undefined,
+        sponsorLogoPath: e.sponsor_logo_path || undefined, sponsorLogo: e.sponsor_logo_path ? getPublicUrl('photos', e.sponsor_logo_path) : undefined,
+      }))
     : scheduleLocal;
 
   const [docsLocal, setDocsLocal] = usePersistentState('docs', INITIAL_DOCS);
@@ -395,19 +400,51 @@ export default function App() {
     setNotifications((n) => [`Neues Dokument abgelegt: „${d.title}\u201C (${owner})`, ...n]);
   };
   const openDoc = (docId) => { setDocFocus(docId); setTab("documents"); };
-  const addEvent = (ev) => {
+  // Neu gewählte Menükarte / Sponsor-Logo (menuFile, sponsorLogoFile) hochladen
+  // bzw. im Demo-Modus als Data-URL ablegen.
+  const EVENT_MEDIA = [['menuFile', 'menu', 'menuPath'], ['sponsorLogoFile', 'sponsorLogo', 'sponsorLogoPath']];
+  const prepareEventMedia = async (ev) => {
+    const out = { ...ev };
+    for (const [fileKey, urlKey, pathKey] of EVENT_MEDIA) {
+      const file = out[fileKey];
+      delete out[fileKey];
+      if (!file) continue;
+      if (isSupabaseConfigured) {
+        const { path } = await uploadFile('photos', file, 'schedule');
+        out[pathKey] = path;
+        out[urlKey] = getPublicUrl('photos', path);
+      } else {
+        out[urlKey] = await fileToDataUrl(file);
+      }
+    }
+    return out;
+  };
+  const scheduleRow = (ev) => ({
+    date: ev.date, time: ev.time, title: ev.title, location: ev.location || null, type: ev.type, doc_id: ev.docId || null,
+    menu_path: ev.menuPath || null, sponsor_name: ev.sponsorName || null, sponsor_logo_path: ev.sponsorLogoPath || null,
+  });
+  // Ersetzte oder entfernte Bilder aus dem Storage löschen
+  const removeStaleMedia = (prev, next) => {
+    for (const key of ['menuPath', 'sponsorLogoPath']) {
+      if (prev?.[key] && prev[key] !== next?.[key]) deleteFile('photos', prev[key]).catch(() => {});
+    }
+  };
+  // Promise lehnt bei Fehler ab, damit das Formular die Meldung anzeigen kann
+  const addEvent = async (raw) => {
+    const ev = await prepareEventMedia(raw);
     if (isSupabaseConfigured) {
-      insertRow('schedule', { date: ev.date, time: ev.time, title: ev.title, location: ev.location || null, type: ev.type, doc_id: ev.docId || null })
-        .catch((e) => console.warn('[schedule]', e.message));
+      await insertRow('schedule', scheduleRow(ev));
       return;
     }
     setScheduleLocal((s) => [...s, ev].sort((a, b) => evDate(a) - evDate(b)));
     setNotifications((n) => [`Neuer Termin: ${ev.title} (${fmtDayShort(ev.date)}, ${ev.time} Uhr)`, ...n]);
   };
-  const updateEvent = (ev) => {
+  const updateEvent = async (raw) => {
+    const ev = await prepareEventMedia(raw);
     if (isSupabaseConfigured) {
-      updateRow('schedule', ev.id, { date: ev.date, time: ev.time, title: ev.title, location: ev.location || null, type: ev.type, doc_id: ev.docId || null })
-        .catch((e) => console.warn('[schedule]', e.message));
+      const prev = schedule.find((x) => x.id === ev.id);
+      await updateRow('schedule', ev.id, scheduleRow(ev));
+      removeStaleMedia(prev, ev);
       return;
     }
     setScheduleLocal((s) => s.map((x) => (x.id === ev.id ? ev : x)).sort((a, b) => evDate(a) - evDate(b)));
@@ -415,7 +452,10 @@ export default function App() {
   };
   const deleteEvent = (id) => {
     if (isSupabaseConfigured) {
-      deleteRow('schedule', id).catch((e) => console.warn('[schedule]', e.message));
+      const prev = schedule.find((x) => x.id === id);
+      deleteRow('schedule', id)
+        .then(() => removeStaleMedia(prev, null))
+        .catch((e) => console.warn('[schedule]', e.message));
       return;
     }
     const removed = schedule.find((x) => x.id === id);

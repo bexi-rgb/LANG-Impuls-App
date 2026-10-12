@@ -2,10 +2,76 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Calendar, Clock, MapPin, PlaneTakeoff, PlaneLanding, CalendarDays, Bus,
   Utensils, Landmark, Plus, Edit3, Check, X, Trash2, Download, ArrowRight,
-  ChevronLeft, ChevronRight, QrCode,
+  ChevronLeft, ChevronRight, QrCode, BookOpen, ImagePlus, Loader2,
 } from 'lucide-react';
 import { C, MONO, TRIP_DAYS, TYPE_META, evDate, fmtDayLong, fmtDayShort, downloadICS, mapsUrl } from './constants.js';
 import { Label, AppOverlay } from './shell.jsx';
+import { downscaleImage } from './lib/image.js';
+
+// Bildfeld im Termin-Formular: Vorschau + Wählen/Ersetzen/Entfernen.
+// value: { url, file? } | null — `file` nur bei neu gewähltem Bild.
+function ImagePickField({ label, value, onChange, prepare, previewClass, previewStyle }) {
+  const inputRef = useRef(null);
+  const pick = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    const small = await prepare(file);
+    onChange({ url: URL.createObjectURL(small), file: small });
+  };
+  return (
+    <div className="space-y-1.5">
+      <p style={{ color: C.silver, fontFamily: MONO, letterSpacing: "0.15em" }} className="text-[12px] font-bold uppercase">{label}</p>
+      <div className="flex items-center gap-2.5">
+        {value && (
+          <div className={`rounded-xl overflow-hidden shrink-0 ${previewClass}`} style={previewStyle}>
+            <img src={value.url} alt={label} className="w-full h-full object-contain" />
+          </div>
+        )}
+        <button type="button" onClick={() => inputRef.current?.click()}
+          style={{ background: `${C.charcoal}4d`, color: C.gold, letterSpacing: "0.1em" }}
+          className="px-3 py-2 rounded-xl text-[12px] font-black uppercase flex items-center gap-1.5 active:scale-95 transition">
+          <ImagePlus className="w-4 h-4" /> {value ? "Ersetzen" : "Bild wählen"}
+        </button>
+        {value && (
+          <button type="button" onClick={() => onChange(null)} aria-label={`${label} entfernen`}
+            style={{ background: `${C.charcoal}4d`, color: "#e57373" }}
+            className="p-2 rounded-xl active:scale-95 transition">
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
+        <input ref={inputRef} type="file" accept="image/*" onChange={pick} className="hidden" />
+      </div>
+    </div>
+  );
+}
+
+// Menükarte in Vollansicht. Zoom ist in der App gesperrt (viewport), daher
+// Tippen aufs Bild: Wechsel zwischen „ganze Karte“ und doppelter Breite zum Lesen.
+function MenuViewer({ event, onClose }) {
+  const [zoomed, setZoomed] = useState(false);
+  const stop = (e) => e.stopPropagation();
+  return (
+    <AppOverlay className="z-50 bg-black" onPointerDown={stop} onPointerUp={stop}
+      role="dialog" aria-modal="true" aria-label={`Menü ${event.title}`}>
+      <div className="absolute inset-0 overflow-auto overscroll-contain" onClick={onClose}>
+        <div className={`min-h-full flex ${zoomed ? "" : "items-center justify-center"}`}
+          style={{ padding: "calc(3.5rem + var(--sat, env(safe-area-inset-top))) 0 calc(1rem + env(safe-area-inset-bottom))" }}>
+          <img src={event.menu} alt={`Menü ${event.title}`} onClick={(e) => { e.stopPropagation(); setZoomed((z) => !z); }}
+            className={zoomed ? "max-w-none shrink-0" : "max-w-full h-auto"} style={zoomed ? { width: "200%" } : undefined} />
+        </div>
+      </div>
+      <div className="absolute left-0 right-0 flex items-center justify-between gap-3 px-3 pointer-events-none"
+        style={{ top: "max(0.75rem, var(--sat, env(safe-area-inset-top)))" }}>
+        <p className="text-white text-sm font-extrabold truncate bg-black/60 rounded-lg px-2.5 py-1">{event.title}</p>
+        <button type="button" onClick={onClose} aria-label="Schließen"
+          className="pointer-events-auto w-10 h-10 shrink-0 rounded-full bg-white/15 text-white flex items-center justify-center active:scale-95 transition">
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+    </AppOverlay>
+  );
+}
 
 export function ScheduleEventModal({ initial, defaultDate, docs = [], onSave, onDelete, onClose }) {
   const isEdit = !!initial?.id;
@@ -15,10 +81,15 @@ export function ScheduleEventModal({ initial, defaultDate, docs = [], onSave, on
   const [location, setLocation] = useState(initial?.location || "");
   const [type, setType] = useState(initial?.type || "activity");
   const [docId, setDocId] = useState(initial?.docId || "");
+  const [menu, setMenu] = useState(initial?.menu ? { url: initial.menu } : null);
+  const [sponsorName, setSponsorName] = useState(initial?.sponsorName || "");
+  const [sponsorLogo, setSponsorLogo] = useState(initial?.sponsorLogo ? { url: initial.sponsorLogo } : null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
   const input = { background: `${C.charcoal}4d`, borderColor: `${C.charcoal}80` };
 
-  const save = () => {
-    if (!title.trim()) return;
+  const save = async () => {
+    if (!title.trim() || saving) return;
     const ev = {
       id: initial?.id || `e${Date.now()}`,
       date, time,
@@ -26,9 +97,25 @@ export function ScheduleEventModal({ initial, defaultDate, docs = [], onSave, on
       location: location.trim() || undefined,
       type,
       docId: (type === "flight" && docId) ? docId : undefined,
+      // Unverändertes Bild: bisherige URL/Pfad behalten; neues Bild: File wird beim Speichern hochgeladen
+      menu: menu && !menu.file ? menu.url : undefined,
+      menuPath: menu && !menu.file ? initial?.menuPath : undefined,
+      menuFile: menu?.file,
+      sponsorName: sponsorName.trim() || undefined,
+      sponsorLogo: sponsorLogo && !sponsorLogo.file ? sponsorLogo.url : undefined,
+      sponsorLogoPath: sponsorLogo && !sponsorLogo.file ? initial?.sponsorLogoPath : undefined,
+      sponsorLogoFile: sponsorLogo?.file,
     };
-    onSave(ev);
-    onClose();
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await onSave(ev);
+      onClose();
+    } catch (e) {
+      console.warn('[schedule]', e?.message);
+      setSaveError("Speichern fehlgeschlagen. Bitte Verbindung prüfen und erneut versuchen.");
+      setSaving(false);
+    }
   };
 
   const confirmDelete = () => {
@@ -100,7 +187,19 @@ export function ScheduleEventModal({ initial, defaultDate, docs = [], onSave, on
               </select>
             ) : <div />}
           </div>
+
+          <ImagePickField label="Menükarte (optional)" value={menu} onChange={setMenu}
+            prepare={(f) => downscaleImage(f, 2400, 0.9)}
+            previewClass="w-12 h-16" previewStyle={{ background: "#fff" }} />
+
+          <input value={sponsorName} onChange={(e) => setSponsorName(e.target.value)} placeholder="Sponsored by — Name (optional)"
+            style={input} className="w-full border rounded-xl px-3 py-2.5 text-sm text-white placeholder:opacity-70 focus:outline-none" />
+          <ImagePickField label="Sponsor-Logo (optional)" value={sponsorLogo} onChange={setSponsorLogo}
+            prepare={(f) => downscaleImage(f, 600, 0.92, 'image/png')}
+            previewClass="w-20 h-10 p-1" previewStyle={{ background: "#fff" }} />
         </div>
+
+        {saveError && <p className="text-sm" style={{ color: "#e57373" }}>{saveError}</p>}
 
         <div className="flex items-center gap-2.5 pt-1">
           {isEdit && (
@@ -109,9 +208,10 @@ export function ScheduleEventModal({ initial, defaultDate, docs = [], onSave, on
               <Trash2 className="w-4 h-4" /> Löschen
             </button>
           )}
-          <button onClick={save} style={{ background: C.gold, letterSpacing: "0.15em" }}
-            className="flex-1 py-2.5 rounded-xl text-[14px] font-black uppercase text-white hover:opacity-90 active:scale-[.99] transition">
-            {isEdit ? "Änderungen speichern" : "Zum Plan hinzufügen"}
+          <button onClick={save} disabled={saving} style={{ background: C.gold, letterSpacing: "0.15em" }}
+            className="flex-1 py-2.5 rounded-xl text-[14px] font-black uppercase text-white hover:opacity-90 active:scale-[.99] transition disabled:opacity-70 flex items-center justify-center gap-2">
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+            {saving ? "Speichert…" : isEdit ? "Änderungen speichern" : "Zum Plan hinzufügen"}
           </button>
         </div>
       </div>
@@ -122,6 +222,7 @@ export function ScheduleEventModal({ initial, defaultDate, docs = [], onSave, on
 export function ScheduleTab({ schedule, docs = [], onOpenDoc, isAdmin = false, onAddEvent, onUpdateEvent, onDeleteEvent }) {
   const [day, setDay] = useState(0);
   const [editing, setEditing] = useState(null); // null | { mode: 'add'|'edit', event? }
+  const [menuEvent, setMenuEvent] = useState(null); // Termin, dessen Menükarte offen ist
   const startX = useRef(null);
   const clamp = (i) => Math.max(0, Math.min(TRIP_DAYS.length - 1, i));
   const onDown = (e) => { startX.current = e.clientX; };
@@ -219,6 +320,30 @@ export function ScheduleTab({ schedule, docs = [], onOpenDoc, isAdmin = false, o
                     <MapPin className="w-3.5 h-3.5 shrink-0 opacity-80" />{e.location}
                   </a>
                 )}
+                {e.menu && (
+                  <button onClick={() => setMenuEvent(e)} aria-label={`Menü für ${e.title} ansehen`}
+                    style={{ borderColor: `${C.charcoal}66`, background: "#fff" }}
+                    className="mt-3 relative block w-full h-28 rounded-xl overflow-hidden border active:scale-[.99] transition">
+                    <img src={e.menu} alt="" className="w-full h-full object-cover object-top" />
+                    <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, transparent 25%, rgba(0,0,0,0.8))" }} />
+                    <span style={{ letterSpacing: "0.1em" }}
+                      className="absolute bottom-2 left-2.5 flex items-center gap-1.5 text-[13px] font-black uppercase text-white">
+                      <BookOpen className="w-4 h-4" style={{ color: C.gold }} /> Menü ansehen
+                    </span>
+                  </button>
+                )}
+                {(e.sponsorLogo || e.sponsorName) && (
+                  <div className="mt-3 flex items-center gap-2.5 flex-wrap">
+                    <span style={{ color: C.silver, fontFamily: MONO, letterSpacing: "0.15em" }} className="text-[12px] font-bold uppercase">Sponsored by</span>
+                    {e.sponsorLogo ? (
+                      <span className="bg-white rounded-lg px-2.5 py-1.5 flex items-center">
+                        <img src={e.sponsorLogo} alt={e.sponsorName || "Sponsor"} className="h-6 max-w-[140px] object-contain" />
+                      </span>
+                    ) : (
+                      <span className="text-sm font-extrabold">{e.sponsorName}</span>
+                    )}
+                  </div>
+                )}
                 <div className="flex items-center gap-4 flex-wrap">
                   {e.docId && (
                     <button onClick={() => onOpenDoc(e.docId)} style={{ color: C.gold, letterSpacing: "0.1em" }}
@@ -245,9 +370,9 @@ export function ScheduleTab({ schedule, docs = [], onOpenDoc, isAdmin = false, o
           initial={editing.mode === "edit" ? editing.event : null}
           defaultDate={date}
           docs={docs}
-          onSave={(ev) => {
-            if (editing.mode === "edit") onUpdateEvent(ev);
-            else onAddEvent(ev);
+          onSave={async (ev) => {
+            if (editing.mode === "edit") await onUpdateEvent(ev);
+            else await onAddEvent(ev);
             const idx = TRIP_DAYS.indexOf(ev.date);
             if (idx >= 0) setDay(idx);
           }}
@@ -255,6 +380,7 @@ export function ScheduleTab({ schedule, docs = [], onOpenDoc, isAdmin = false, o
           onClose={() => setEditing(null)}
         />
       )}
+      {menuEvent && <MenuViewer event={menuEvent} onClose={() => setMenuEvent(null)} />}
     </div>
   );
 }
