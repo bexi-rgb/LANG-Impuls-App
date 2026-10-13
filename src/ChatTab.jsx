@@ -7,7 +7,7 @@ import { Label, Avatar, EmojiPicker, AppOverlay } from './shell.jsx';
 import { QUICK_REACTIONS } from './emoji.js';
 import { downscaleImage } from './lib/image.js';
 
-export function ChatTab({ user, focus, travelers, messages, onSend, typing, onToggleReaction }) {
+export function ChatTab({ user, focus, travelers, messages, onSend, typing, onToggleReaction, onMarkRead }) {
   const isAdmin = user.role === "admin";
   const isSenderAdmin = (id) => id === "admin" || travelers.find((t) => t.id === id)?.role === "admin";
   // Aus Push-Benachrichtigung: 'direct:<travelerId>' öffnet die Direkt-Unterhaltung
@@ -49,6 +49,17 @@ export function ChatTab({ user, focus, travelers, messages, onSend, typing, onTo
   useEffect(() => {
     if (!showList) endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [channelMessages.length, typing, channel, showList]);
+
+  // Offene Direkt-Unterhaltung als gelesen markieren — auch bei neu
+  // eintreffenden Nachrichten, aber nur solange die App wirklich sichtbar ist.
+  const unreadInChannel = channelMessages.filter((m) => m.senderId !== user.id && m.status !== "read").length;
+  useEffect(() => {
+    if (showList || !channel?.startsWith("direct:") || !unreadInChannel || !onMarkRead) return;
+    const mark = () => { if (document.visibilityState === "visible") onMarkRead(channel); };
+    mark();
+    document.addEventListener("visibilitychange", mark);
+    return () => document.removeEventListener("visibilitychange", mark);
+  }, [channel, showList, unreadInChannel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Tastatur öffnet/schließt → Nachrichtenbereich wird kleiner/größer: unten bleiben,
   // damit die letzte Nachricht direkt über der Eingabezeile sichtbar ist.
@@ -164,7 +175,8 @@ export function ChatTab({ user, focus, travelers, messages, onSend, typing, onTo
     .filter((t) => !q || t.name.toLowerCase().includes(q))
     .map((t) => ({ t, last: lastMessageFor(t.id) }))
     .sort((a, b) => {
-      if (a.last && b.last) return b.last.time.localeCompare(a.last.time);
+      // Nach echtem Zeitstempel sortieren — "HH:MM" allein ignoriert das Datum
+      if (a.last && b.last) return (b.last.createdAt || b.last.time).localeCompare(a.last.createdAt || a.last.time);
       if (a.last) return -1;
       if (b.last) return 1;
       return a.t.name.localeCompare(b.t.name);
@@ -222,7 +234,7 @@ export function ChatTab({ user, focus, travelers, messages, onSend, typing, onTo
               </div>
             )}
             {listItems.map(({ t, last }) => {
-              const isPending = last && !isSenderAdmin(last.senderId);
+              const isPending = last && !isSenderAdmin(last.senderId) && last.status !== "read";
               const previewText = last ? (last.text || "📷 Foto") : "Noch keine Nachrichten";
               const previewPrefix = !last ? "" : isSenderAdmin(last.senderId) ? "Du: " : "";
               return (

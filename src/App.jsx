@@ -9,7 +9,7 @@ import {
 } from './constants.js';
 import { usePersistentState, loadValue, saveValue, removeValue, clearAll } from './storage.js';
 import {
-  isSupabaseConfigured, useSession, signInWithPassword, createTravelerAccount,
+  supabase, isSupabaseConfigured, useSession, signInWithPassword, createTravelerAccount,
   updateTravelerAccount, deleteTravelerAccount,
   insertRow, updateRow, deleteRow, useCollection, uploadFile, deleteFile, getPublicUrl, setConfig, signOut,
 } from './lib/supabase.js';
@@ -46,8 +46,10 @@ export default function App() {
   // Eigene, noch nicht vom Server bestätigte Reaktionen (optimistisch)
   const [reactionOverrides, setReactionOverrides] = useState({});
   useEffect(() => { setReactionOverrides({}); }, [messagesRemote]);
+  // Lokal schon als gelesen markierte Nachrichten (Punkt verschwindet sofort)
+  const [readIds, setReadIds] = useState(() => new Set());
   const messages = isSupabaseConfigured
-    ? messagesRemote.map((m) => ({ id: m.id, channel: m.channel, senderId: m.sender_id, text: m.text, image: m.image_path ? getPublicUrl('photos', m.image_path) : null, status: m.status, time: shortTime(m.created_at), reactions: reactionOverrides[m.id] || m.reactions || {} }))
+    ? messagesRemote.map((m) => ({ id: m.id, channel: m.channel, senderId: m.sender_id, text: m.text, image: m.image_path ? getPublicUrl('photos', m.image_path) : null, status: readIds.has(m.id) ? 'read' : m.status, time: shortTime(m.created_at), createdAt: m.created_at, reactions: reactionOverrides[m.id] || m.reactions || {} }))
     : messagesLocal;
 
   const [photosLocal, setPhotosLocal] = usePersistentState('photos', INITIAL_PHOTOS);
@@ -289,6 +291,22 @@ export default function App() {
       return;
     }
     setMessagesLocal((ms) => ms.map((m) => (m.id === messageId ? { ...m, reactions: computeToggledReactions(m, emoji) } : m)));
+  };
+
+  // Unterhaltung geöffnet → alle eingegangenen Nachrichten darin als gelesen
+  // markieren (steuert den Ungelesen-Punkt und die Lesebestätigung beim Absender).
+  const markChannelRead = (channel) => {
+    const ids = messages
+      .filter((m) => m.channel === channel && m.senderId !== user.id && m.status !== "read")
+      .map((m) => m.id);
+    if (!ids.length) return;
+    setReadIds((s) => new Set([...s, ...ids]));
+    if (isSupabaseConfigured) {
+      supabase.from('messages').update({ status: 'read' }).in('id', ids)
+        .then(({ error }) => { if (error) console.warn('[read]', error.message); });
+      return;
+    }
+    setMessagesLocal((ms) => ms.map((m) => (ids.includes(m.id) ? { ...m, status: "read" } : m)));
   };
 
   const addComment = (photoId, comment) => {
@@ -549,7 +567,7 @@ export default function App() {
           {tab === "home" && <HomeTab setTab={setTab} broadcasts={broadcasts} messages={messages} travelers={travelers} schedule={schedule} onOpenDoc={openDoc} tiles={homeTiles} ticker={ticker} isAdmin={user.role === "admin"} onUpdateTile={updateTile} onReorderTiles={reorderTiles} onDeleteTile={deleteTile} onAddTile={addTile} onUpdateTicker={updateTicker} user={user} />}
           {tab === "schedule" && <ScheduleTab schedule={schedule} docs={docs} onOpenDoc={openDoc} isAdmin={user.role === "admin"} onAddEvent={addEvent} onUpdateEvent={updateEvent} onDeleteEvent={deleteEvent} />}
           {tab === "documents" && <DocumentsTab user={user} docs={docs} travelers={travelers} focusId={docFocus} onAddDoc={addDoc} />}
-          {tab === "chat" && <ChatTab user={user} focus={chatFocus} travelers={travelers} messages={messages} onSend={sendMessage} typing={typing} onToggleReaction={toggleReaction} />}
+          {tab === "chat" && <ChatTab user={user} focus={chatFocus} travelers={travelers} messages={messages} onSend={sendMessage} typing={typing} onToggleReaction={toggleReaction} onMarkRead={markChannelRead} />}
           {tab === "photos" && <PhotosTab photos={photos} user={user} onComment={addComment} onShare={sharePhoto} onDelete={deletePhoto} />}
           {tab === "admin" && user.role === "admin" && <AdminTab travelers={travelers} docs={docs} onBroadcast={broadcast} onToggleStatus={toggleTravelerStatus} onAddTraveler={addTraveler} onEditTraveler={editTraveler} onDeleteTraveler={removeTraveler} onAddEvent={addEvent} onResetData={resetPreviewData} />}
         </main>
