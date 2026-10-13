@@ -52,7 +52,7 @@ export default function App() {
 
   const [photosLocal, setPhotosLocal] = usePersistentState('photos', INITIAL_PHOTOS);
   const { data: photosRemote } = useCollection('photos', { orderBy: 'created_at', ascending: false });
-  const { data: photoCommentsRemote } = useCollection('photo_comments', { orderBy: 'created_at' });
+  const { data: photoCommentsRemote, mergeRow: mergePhotoComment } = useCollection('photo_comments', { orderBy: 'created_at', pollMs: 15000 });
   const photos = isSupabaseConfigured
     ? photosRemote.map((p) => ({
         id: p.id,
@@ -293,8 +293,15 @@ export default function App() {
 
   const addComment = (photoId, comment) => {
     if (isSupabaseConfigured) {
-      insertRow('photo_comments', { photo_id: photoId, author_id: user.id, text: comment.text }).catch((e) => console.warn('[comment]', e.message));
-      return;
+      // Bestätigte Zeile sofort anzeigen; Fehler an den Viewer weitergeben,
+      // damit der Text nicht stillschweigend verschwindet.
+      return insertRow('photo_comments', { photo_id: photoId, author_id: user.id, text: comment.text })
+        .then(mergePhotoComment)
+        .catch((e) => {
+          console.warn('[comment]', e.message);
+          setNotifications((n) => [`Kommentar konnte nicht gespeichert werden: ${e.message}`, ...n]);
+          throw e;
+        });
     }
     setPhotosLocal((ps) => ps.map((p) => (p.id === photoId ? { ...p, comments: [...p.comments, comment] } : p)));
   };

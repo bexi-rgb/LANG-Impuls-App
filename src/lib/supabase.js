@@ -282,10 +282,25 @@ export function useCollection(table, opts = {}) {
 
     // Realtime-Subscription: bei jeder Änderung neu laden.
     // (Für Chat könnte man optimistischer diff-mergen; für 20-Personen-Reisen ist Reload OK.)
+    // Nach jedem (Wieder-)Verbinden neu laden: Änderungen, die während einer
+    // Unterbrechung passiert sind, liefert Realtime nicht nach.
     const channel = supabase
       .channel(`realtime:${table}`)
       .on('postgres_changes', { event: '*', schema: 'public', table }, () => load())
-      .subscribe();
+      .subscribe((status) => { if (status === 'SUBSCRIBED') load(); });
+
+    // iOS friert die Home-Screen-App im Hintergrund ein und kappt dabei den
+    // Realtime-Websocket. Beim Zurückkehren (oder wenn das Netz wieder da ist)
+    // daher frisch laden, sonst sieht man z.B. neue Kommentare nicht.
+    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', load);
+
+    // Optionales Sicherheitsnetz: Realtime-Events gehen auf manchen Geräten
+    // auch bei offener App verloren — dann regelmäßig nachladen (nur sichtbar).
+    const poll = optsRef.current.pollMs
+      ? setInterval(() => { if (document.visibilityState === 'visible') load(); }, optsRef.current.pollMs)
+      : null;
 
     // Nach Login/Logout neu laden: die Tabellen sind per RLS nur für
     // angemeldete Nutzer lesbar. Ohne das bleiben Listen, die schon auf dem
@@ -299,10 +314,23 @@ export function useCollection(table, opts = {}) {
       cancelled = true;
       supabase.removeChannel(channel);
       subscription.unsubscribe();
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', load);
+      clearInterval(poll);
     };
   }, [table]);
 
-  return { data, loading, error };
+  // Eigene, vom Server bestätigte Zeile sofort übernehmen, ohne auf
+  // Realtime zu warten (ersetzt bei gleicher id, sonst anhängen/voranstellen).
+  const mergeRow = (row) => {
+    if (!row?.id) return;
+    setData((rows) => {
+      if (rows.some((r) => r.id === row.id)) return rows.map((r) => (r.id === row.id ? row : r));
+      return optsRef.current.ascending === false ? [row, ...rows] : [...rows, row];
+    });
+  };
+
+  return { data, loading, error, mergeRow };
 }
 
 /**

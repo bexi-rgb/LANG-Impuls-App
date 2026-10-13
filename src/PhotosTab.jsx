@@ -267,9 +267,7 @@ export function PhotosTab({ photos, user, onComment, onShare, onDelete }) {
           onClose={() => setSelectedIdx(null)}
           onTagClick={(t) => { setActiveTag(t); setSelectedIdx(null); }}
           onDelete={canDelete(sel) ? () => deletePhoto(sel) : null}
-          onComment={(text) => {
-            onComment(sel.id, { id: `c${Date.now()}`, author: user.name, text, time: "gerade eben" });
-          }}
+          onComment={(text) => onComment(sel.id, { id: `c${Date.now()}`, author: user.name, text, time: "gerade eben" })}
         />
       )}
     </div>
@@ -347,11 +345,20 @@ function PhotoViewer({ photos, index, onIndexChange, onClose, onTagClick, onComm
   };
 
   const commentRef = useRef(null);
-  const submitComment = () => {
-    if (!comment.trim()) return;
-    onComment(comment.trim());
+  const [sending, setSending] = useState(false);
+  const submitComment = async () => {
+    const text = comment.trim();
+    if (!text || sending) return; // kein Doppel-Senden bei langsamem Netz
+    setSending(true);
     setComment("");
     commentRef.current?.blur(); // Tastatur zu → Foto und Zurück-Button wieder voll sichtbar
+    try {
+      await onComment(text);
+    } catch {
+      setComment(text); // Speichern fehlgeschlagen → Text zurück ins Feld
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -457,8 +464,8 @@ function PhotoViewer({ photos, index, onIndexChange, onClose, onTagClick, onComm
               style={{ background: `${C.charcoal}40`, borderColor: `${C.charcoal}66` }}
               className="flex-1 border rounded-xl px-3 py-2 text-base text-white placeholder:opacity-70 focus:outline-none"
             />
-            <button type="button" onClick={submitComment} style={{ background: C.gold }}
-              className="px-3 rounded-xl text-white active:scale-95 transition" aria-label="Kommentar senden">
+            <button type="button" onClick={submitComment} disabled={sending} style={{ background: C.gold }}
+              className="px-3 rounded-xl text-white active:scale-95 transition disabled:opacity-50" aria-label="Kommentar senden">
               <Send className="w-4 h-4" />
             </button>
           </div>
