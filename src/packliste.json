@@ -1,0 +1,60 @@
+{
+  "packliste": [
+    {
+      "kategorie": "Dokumente & Geld",
+      "punkte": [
+        "Reisepass (noch mind. 6 Monate gültig)",
+        "Kreditkarte",
+        "Krankenversicherungskarte / Auslandskrankenversicherung",
+        "Viele Visitenkarten (Herstellerbesuche)"
+      ]
+    },
+    {
+      "kategorie": "Technik",
+      "punkte": [
+        "Reiseadapter Typ A/B (Taiwan: US-Stecker, 110 V)",
+        "Powerbank + Ladekabel",
+        "eSIM vorab installiert (QR-Code kommt per Mail)",
+        "Kopfhörer für den Flug"
+      ]
+    },
+    {
+      "kategorie": "Kleidung",
+      "punkte": [
+        "Business-Outfit für die Herstellerbesuche (Fr, Mo, Di)",
+        "Bequeme Schuhe zum Laufen",
+        "Geschlossene Schuhe (Kartbahn, Radtour)",
+        "Leichte Regenjacke oder Schirm (November ca. 20–25 °C, Regen möglich)",
+        "Pulli oder Jacke für klimatisierte Busse und Räume",
+        "Etwas Schickes für die Abende"
+      ]
+    },
+    {
+      "kategorie": "Wasser & Action",
+      "punkte": [
+        "Badesachen",
+        "Schnell trocknende Kleidung + Wechselkleidung (River Tracing Sa, Kanu So)",
+        "Schuhe, die nass werden dürfen",
+        "Sonnencreme, Kappe",
+        "Mückenschutz"
+      ]
+    },
+    {
+      "kategorie": "Gesundheit",
+      "punkte": [
+        "Persönliche Medikamente",
+        "Reisetabletten (kurvige Küstenstraße)",
+        "Pflaster"
+      ]
+    },
+    {
+      "kategorie": "Sonstiges",
+      "punkte": [
+        "Handylicht oder kleine Taschenlampe (Elephant Mountain bei Dämmerung)",
+        "Wiederverwendbare Wasserflasche",
+        "Kleiner Tagesrucksack",
+        "Platz im Koffer für Souvenirs"
+      ]
+    }
+  ]
+}

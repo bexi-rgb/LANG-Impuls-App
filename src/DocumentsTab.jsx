@@ -1,11 +1,73 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   FileText, CheckCircle2, QrCode, Download, Building, PlaneTakeoff, Shield,
-  Paperclip, FolderPlus, X, User, ChevronDown,
+  Paperclip, FolderPlus, X, User, ChevronDown, Luggage, Copy, Check,
 } from 'lucide-react';
 import { C, MONO, DOC_TYPES } from './constants.js';
 import { Label } from './shell.jsx';
 import { isSupabaseConfigured, getSignedUrl } from './lib/supabase.js';
+import { PACKLIST, toPlainList, downloadPacklist } from './packlist.js';
+
+const PACK_OPTIONS = [
+  { format: "txt", title: "Textdatei (.txt)", hint: "Mit Kategorien – zum Ausdrucken oder Lesen" },
+  { format: "md", title: "Checkliste (.md)", hint: "Für Notion oder Obsidian – mit Häkchen" },
+  { format: "csv", title: "Todoist (.csv)", hint: "In Todoist: Projekt → Aus Vorlage importieren" },
+];
+
+export function PacklistModal({ onClose }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(toPlainList());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch { /* Clipboard nicht verfügbar */ }
+  };
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: C.surfaceHigh, borderColor: `${C.charcoal}66` }}
+        className="w-full max-w-md border-t rounded-t-3xl p-5 space-y-4 fadeup max-h-[92%] overflow-y-auto">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Luggage className="w-5 h-5" style={{ color: C.gold }} />
+            <Label>Packliste herunterladen</Label>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg active:scale-95" style={{ background: `${C.charcoal}55` }}>
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <button onClick={copy} style={{ background: C.gold }}
+          className="w-full rounded-xl px-4 py-3.5 flex items-center gap-3 text-left text-white active:scale-[.99] hover:opacity-90 transition">
+          {copied ? <Check className="w-5 h-5 shrink-0" /> : <Copy className="w-5 h-5 shrink-0" />}
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-extrabold">{copied ? "Kopiert!" : "Liste kopieren"}</p>
+            <p className="text-[12px] opacity-90 leading-snug">
+              {copied
+                ? "Jetzt in einer neuen Liste einfügen – jede Zeile wird ein eigener Punkt."
+                : "Für Apple Erinnerungen, Microsoft To Do, Google Keep oder Todoist"}
+            </p>
+          </div>
+        </button>
+
+        <div className="space-y-2">
+          {PACK_OPTIONS.map((o) => (
+            <button key={o.format} onClick={() => downloadPacklist(o.format)}
+              style={{ background: `${C.charcoal}4d`, borderColor: `${C.charcoal}80` }}
+              className="w-full border rounded-xl px-4 py-3 flex items-center gap-3 text-left active:scale-[.99] hover:opacity-90 transition">
+              <Download className="w-5 h-5 shrink-0" style={{ color: C.gold }} />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-extrabold">{o.title}</p>
+                <p style={{ color: C.silver }} className="text-[12px] leading-snug">{o.hint}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function DocumentUploadModal({ user, travelers, onSave, onClose }) {
   const isAdmin = user.role === "admin";
@@ -116,6 +178,7 @@ export function DocumentsTab({ user, docs, travelers, focusId, onAddDoc }) {
   const [typeFilter, setTypeFilter] = useState("all");
   const [personFilter, setPersonFilter] = useState("all"); // "all" | "group" | travelerId
   const [showUpload, setShowUpload] = useState(false);
+  const [showPacklist, setShowPacklist] = useState(false);
   const focusRef = useRef(null);
   useEffect(() => {
     if (focusId && focusRef.current) focusRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -152,6 +215,22 @@ export function DocumentsTab({ user, docs, travelers, focusId, onAddDoc }) {
           </button>
         )}
       </div>
+
+      {/* Packliste */}
+      <button onClick={() => setShowPacklist(true)}
+        style={{ background: `${C.gold}14`, borderColor: `${C.gold}66` }}
+        className="w-full border rounded-2xl p-5 flex items-center gap-4 text-left active:scale-[.99] hover:opacity-90 transition">
+        <div style={{ background: `${C.gold}1a`, borderColor: `${C.gold}40` }} className="w-14 h-14 rounded-xl border flex items-center justify-center shrink-0">
+          <Luggage className="w-6 h-6" style={{ color: C.gold }} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-base font-extrabold">Packliste</p>
+          <p style={{ color: C.silver }} className="text-sm mt-0.5 leading-relaxed">
+            {PACKLIST.reduce((n, c) => n + c.items.length, 0)} Punkte zum Abhaken – in deine Erinnerungen, To Do oder als Datei.
+          </p>
+        </div>
+        <Download className="w-5 h-5 shrink-0" style={{ color: C.gold }} />
+      </button>
 
       {/* Filter */}
       <div className="space-y-3">
@@ -258,6 +337,8 @@ export function DocumentsTab({ user, docs, travelers, focusId, onAddDoc }) {
           </div>
         )}
       </div>
+
+      {showPacklist && <PacklistModal onClose={() => setShowPacklist(false)} />}
 
       {showUpload && (
         <DocumentUploadModal
