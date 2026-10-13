@@ -52,7 +52,75 @@ export const INITIAL_SCHEDULE = [
 /* Startseiten-Ticker, Kacheln & Templates */
 export const INITIAL_TICKER = "FLUG CI 062: PÜNKTLICH • WETTER IN TAIPEH: 24°C LEICHT BEWÖLKT • CHECK-IN IM GRAND HYATT TAIPEI VERFÜGBAR • ABENDESSEN BEI DIN TAI FUNG BESTÄTIGT";
 
+/* Meet the Team – Inhalte aus IMPULS_Reisende.pdf, Fotos unter public/team/ */
+export const TEAM_MEMBERS = [
+  {
+    id: "nishaanth", name: "Nishaanth Balachandran", role: "Director Sales Integration",
+    photo: "/team/nishaanth.jpg", face: "/team/nishaanth-face.jpg",
+    facts: [
+      ["Run time", "Seit 2019 bei der LANG AG"],
+      ["Resolution (Core Focus)", "4K gestochen scharf"],
+      ["Power (Source)", "Familie, Berge und das Meer"],
+      ["Colour Temperature (Vibe Check)", "4.300 K – warm & präzise"],
+      ["Area of Application (hobby, hidden talent)", "MLC Rennrad, Guter Kaffee, eine napoletanische Pizza + Fussball"],
+    ],
+  },
+  {
+    id: "mark", name: "Mark Moosmayer", role: "Director Sales",
+    photo: "/team/mark.jpg", face: "/team/mark-face.jpg",
+    facts: [
+      ["Run time", "Seit 2019 bei der LANG AG"],
+      ["Refresh Rate", "Ideen entstehen selten im Stillstand"],
+      ["Power Source", "Cola Zero"],
+      ["Application Area", "Outdoor – Optimale Performance mit Laufschuhen"],
+      ["Discovery Mode", "Always On"],
+    ],
+  },
+  {
+    id: "kamilla", name: "Kamilla Lang", role: "People Business",
+    photo: "/team/kamilla.jpg", face: "/team/kamilla-face.jpg",
+    facts: [
+      ["Run time", "Seit 2018 bei der LANG AG"],
+      ["Scan Rate", "Erkennt Talente schneller als andere freie Parkplätze."],
+      ["Power", "Steigt nach dem zweiten Glas Sekt."],
+      ["Service", "Bei Störungen mit Snacks neu starten."],
+      ["Compatibility", "Mit allen Abteilungen kompatibel. Bei „Das haben wir schon immer so gemacht“ kann es flackern. 😎"],
+    ],
+  },
+  {
+    id: "svenja", name: "Svenja Mevissen", role: "Director LED & Displays",
+    photo: "/team/svenja.jpg", face: "/team/svenja-face.jpg",
+    facts: [
+      ["Run time", "Seit 2017 bei LANG"],
+      ["Technology", "COB – Coffee-On-Board"],
+      ["Viewing Angle", "Mit jedem Reiseziel ein paar Grad mehr."],
+      ["Power Source", "Pistazien Gelato"],
+      ["Application Area", "Outdoor – optimale Performance im Garten."],
+    ],
+  },
+  {
+    id: "rebekka", name: "Rebekka Gingell", role: "Manager Event Technology",
+    photo: "/team/rebekka.jpg", face: "/team/rebekka-face.jpg",
+    facts: [
+      ["Run time", "Seit 2025 bei der LANG AG"],
+      ["Technology", "MiP Media History-in-Pocket"],
+      ["Colour Temperature", "10.000 K, tiefenentspannt wie ein blauer Himmel"],
+      ["Power Source", "Flat White mit Hafermilch"],
+      ["Application Area", "Indoor/Outdoor – Lesen + Fahrrad fahren + Kohlenhydratkonsum (am besten alles gleichzeitig)"],
+    ],
+  },
+];
+
+const TEAM_TILE_DEFAULT = () => ({
+  label: "Meet the Team",
+  headline: "Be part of the circle.",
+  intro: "Das sind wir – euer IMPULS-Team für Taiwan. Tippt auf ein Gesicht und lernt uns kennen!",
+  hideFrom: "2026-11-06", // Reisetag 2 – danach automatisch für Reisende ausgeblendet
+  visibility: "auto",     // auto | show | hide
+});
+
 export const INITIAL_HOME_TILES = [
+  { id: "t-team", type: "team", data: TEAM_TILE_DEFAULT() },
   {
     id: "t-outbound",
     type: "flight",
@@ -225,7 +293,24 @@ export const TILE_TEMPLATES = {
       label: "Währungsrechner",
     }),
   },
+  team: {
+    label: "Meet the Team",
+    icon: "users",
+    default: TEAM_TILE_DEFAULT,
+  },
 };
+
+/** Team-Kachel für Reisende ausgeblendet? (manuell oder ab `hideFrom`, lokales Datum) */
+export function isTileHidden(tile) {
+  if (tile.type !== "team") return false;
+  const v = tile.data.visibility || "auto";
+  if (v === "show") return false;
+  if (v === "hide") return true;
+  if (!tile.data.hideFrom) return false;
+  const d = new Date();
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return today >= tile.data.hideFrom;
+}
 
 /* Helper: countdown label + ICS export */
 export function countdownLabel(e) {

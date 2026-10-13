@@ -7,8 +7,9 @@ import {
   Wine, Music, Car, Bell, Star, CalendarDays, QrCode,
   Sun, Cloud, CloudSun, CloudRain, CloudSnow, CloudFog, CloudLightning, CloudDrizzle,
   Droplets, Wind, RefreshCw, AlertCircle, Coins, ArrowLeftRight, Delete, Check,
+  Users, EyeOff,
 } from 'lucide-react';
-import { C, MONO, TYPE_META, evDate, fmtDayShort, fmtDayLong, countdownLabel, mapsUrl } from './constants.js';
+import { C, MONO, TYPE_META, evDate, fmtDayShort, fmtDayLong, countdownLabel, mapsUrl, TEAM_MEMBERS, isTileHidden } from './constants.js';
 import { PushPrompt } from './PushPrompt.jsx';
 import { Label, EditPencil, HomeSectionEditModal } from './shell.jsx';
 import { useWeather, WEATHER_LOCATIONS, describeWeather, formatFetchedAt } from './api/weather.js';
@@ -409,6 +410,87 @@ export function InfoTileCard({ data }) {
   );
 }
 
+export function TeamCard({ data, onOpen }) {
+  return (
+    <div style={{ background: `linear-gradient(135deg, ${C.surfaceHigh}, ${C.surface})`, borderColor: `${C.gold}59` }}
+      className="border-2 rounded-2xl p-5 space-y-4 relative overflow-hidden">
+      <div style={{ background: `${C.gold}14` }} className="absolute -top-10 -right-10 w-40 h-40 rounded-full blur-2xl pointer-events-none" />
+      <div className="relative space-y-1.5">
+        <div className="flex items-center gap-2">
+          <Users className="w-4 h-4" style={{ color: C.gold }} />
+          <Label>{data.label || "Meet the Team"}</Label>
+        </div>
+        {data.headline && <p className="text-xl font-extrabold">{data.headline}</p>}
+        {data.intro && <p style={{ color: C.silver }} className="text-sm leading-relaxed">{data.intro}</p>}
+      </div>
+      <div className="grid grid-cols-5 gap-2 relative">
+        {TEAM_MEMBERS.map((m) => (
+          <button key={m.id} onClick={() => onOpen?.(m.id)} disabled={!onOpen}
+            className="flex flex-col items-center gap-1.5 min-w-0 active:scale-95 transition">
+            <img src={m.face} alt={m.name} loading="lazy" style={{ borderColor: C.gold }}
+              className="w-full aspect-square rounded-full object-cover border-2" />
+            <span className="text-[11px] font-bold truncate max-w-full">{m.name.split(" ")[0]}</span>
+          </button>
+        ))}
+      </div>
+      <button onClick={() => onOpen?.(null)} disabled={!onOpen} style={{ background: C.gold, letterSpacing: "0.12em" }}
+        className="relative w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[14px] font-black uppercase text-white hover:opacity-90 active:scale-[.98] transition">
+        Team kennenlernen <ChevronRight className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
+export function TeamDetailView({ data, focusId, onClose }) {
+  const refs = useRef({});
+  useEffect(() => {
+    if (focusId) refs.current[focusId]?.scrollIntoView({ block: "start" });
+  }, [focusId]);
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.8)", backdropFilter: "blur(4px)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: C.surfaceHigh, borderColor: `${C.charcoal}66` }}
+        className="w-full max-w-md border-t rounded-t-3xl fadeup max-h-[92%] overflow-y-auto">
+
+        <div style={{ background: C.surfaceHigh, borderColor: `${C.charcoal}66` }} className="sticky top-0 z-10 border-b px-5 py-4 flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <Label>{data.label || "Meet the Team"}</Label>
+            <h2 className="text-2xl font-black tracking-tight mt-1 truncate">{data.headline || "Euer Team"}</h2>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg active:scale-95 shrink-0" style={{ background: `${C.charcoal}55` }}>
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-5">
+          <img src="/team/group.jpg" alt="Das IMPULS-Team" style={{ borderColor: C.gold }} className="w-full rounded-2xl border-4" />
+
+          {TEAM_MEMBERS.map((m) => (
+            <section key={m.id} ref={(el) => { refs.current[m.id] = el; }} style={{ borderColor: `${C.charcoal}66`, scrollMarginTop: "6rem" }}
+              className="border rounded-2xl overflow-hidden">
+              <div style={{ background: C.charcoal }} className="relative">
+                <img src={m.photo} alt={m.name} loading="lazy" className="w-full aspect-square object-cover" />
+                <div className="absolute inset-x-0 bottom-0 px-4 pb-3 pt-10" style={{ background: "linear-gradient(transparent, rgba(0,0,0,0.75))" }}>
+                  <p className="text-lg font-black leading-tight">{m.name}</p>
+                  <p style={{ color: C.silver }} className="text-sm">{m.role}</p>
+                </div>
+              </div>
+              <dl style={{ background: `linear-gradient(180deg, ${C.gold}, #5a5a3c)` }} className="px-4 py-4 space-y-3">
+                {m.facts.map(([k, v]) => (
+                  <div key={k}>
+                    <dt style={{ letterSpacing: "0.12em" }} className="text-[10px] font-black uppercase text-white/75">{k}</dt>
+                    <dd className="text-sm font-semibold leading-snug text-white">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const WEATHER_ICONS = {
   clear: Sun,
   'mostly-clear': Sun,
@@ -748,6 +830,18 @@ export const INFO_FIELDS = [
   { key: "body", label: "Inhalt", multiline: true, placeholder: "Freitext …" },
 ];
 
+export const TEAM_FIELDS = [
+  { key: "label", label: "Label (Overline)", placeholder: "z.B. Meet the Team" },
+  { key: "headline", label: "Überschrift", placeholder: "z.B. Be part of the circle." },
+  { key: "intro", label: "Einleitung", multiline: true, placeholder: "Kurzer Begrüßungstext …" },
+  { key: "visibility", label: "Sichtbarkeit für Reisende", type: "select", options: [
+    { value: "auto", label: "Automatisch (ab Ausblende-Datum versteckt)" },
+    { value: "show", label: "Immer sichtbar" },
+    { value: "hide", label: "Ausgeblendet" },
+  ] },
+  { key: "hideFrom", label: "Ausblenden ab (JJJJ-MM-TT)", placeholder: "2026-11-06", hint: "Gilt nur bei „Automatisch“. Admins sehen die Kachel weiterhin (gedimmt)." },
+];
+
 export const WEATHER_FIELDS = [
   { key: "label", label: "Bezeichnung (intern)", placeholder: "z.B. Wetter Taipeh" },
   { key: "locationKey", label: "Standort", type: "select", options: [
@@ -768,6 +862,7 @@ export function tileFieldsFor(type) {
   if (type === "info") return INFO_FIELDS;
   if (type === "weather") return WEATHER_FIELDS;
   if (type === "currency") return CURRENCY_FIELDS;
+  if (type === "team") return TEAM_FIELDS;
   return [];
 }
 
@@ -777,6 +872,7 @@ export function tileEditTitle(tile) {
   if (tile.type === "info") return `Info bearbeiten`;
   if (tile.type === "weather") return `Wetter-Standort ändern`;
   if (tile.type === "currency") return `Währungsrechner bearbeiten`;
+  if (tile.type === "team") return `Meet the Team bearbeiten`;
   return "Bearbeiten";
 }
 
@@ -784,6 +880,7 @@ export function HomeTab({ setTab, broadcasts, messages, travelers = [], schedule
   const [editMode, setEditMode] = useState(false);
   const [editing, setEditing] = useState(null); // 'ticker' | tileId | null
   const [detailTileId, setDetailTileId] = useState(null);
+  const [teamDetail, setTeamDetail] = useState(null); // { tileId, focusId }
   const [addOpen, setAddOpen] = useState(false);
   const [draggedId, setDraggedId] = useState(null);
   const [dragOverId, setDragOverId] = useState(null);
@@ -822,6 +919,7 @@ export function HomeTab({ setTab, broadcasts, messages, travelers = [], schedule
       : tile.type === "hotel" ? tile.data.name
       : tile.type === "weather" ? (WEATHER_LOCATIONS[tile.data.locationKey]?.name || "Wetter")
       : tile.type === "currency" ? (tile.data.label || "Währungsrechner")
+      : tile.type === "team" ? (tile.data.label || "Meet the Team")
       : tile.data.headline;
     if (window.confirm(`Kachel „${label || tile.type}" wirklich entfernen?`)) onDeleteTile(tile.id);
   };
@@ -867,6 +965,8 @@ export function HomeTab({ setTab, broadcasts, messages, travelers = [], schedule
       {/* Kachel-Liste */}
       <div className="grid grid-cols-1 gap-4">
         {tiles.map((tile) => {
+          const hidden = isTileHidden(tile);
+          if (hidden && !isAdmin) return null;
           const isDragged = draggedId === tile.id;
           const isDropTarget = dragOverId === tile.id && draggedId !== tile.id;
           const personal = personalFor(tile.id);
@@ -912,6 +1012,16 @@ export function HomeTab({ setTab, broadcasts, messages, travelers = [], schedule
               {tile.type === "info" && <InfoTileCard data={tile.data} />}
               {tile.type === "weather" && <WeatherCard data={tile.data} />}
               {tile.type === "currency" && <CurrencyCard data={tile.data} />}
+              {tile.type === "team" && (
+                <div style={{ opacity: hidden ? 0.5 : 1 }}>
+                  {hidden && (
+                    <div style={{ color: C.silver, letterSpacing: "0.14em" }} className="flex items-center gap-1.5 text-[10px] font-black uppercase mb-1.5">
+                      <EyeOff className="w-3.5 h-3.5" /> Für Reisende ausgeblendet
+                    </div>
+                  )}
+                  <TeamCard data={tile.data} onOpen={editMode ? null : (focusId) => setTeamDetail({ tileId: tile.id, focusId })} />
+                </div>
+              )}
             </div>
           );
         })}
@@ -972,6 +1082,13 @@ export function HomeTab({ setTab, broadcasts, messages, travelers = [], schedule
         );
       })()}
 
+      {/* Team-Detail Bottom-Sheet */}
+      {teamDetail && (() => {
+        const t = tiles.find((x) => x.id === teamDetail.tileId);
+        if (!t) return null;
+        return <TeamDetailView data={t.data} focusId={teamDetail.focusId} onClose={() => setTeamDetail(null)} />;
+      })()}
+
       {/* Ticker-Edit-Modal */}
       {editing === "ticker" && (
         <HomeSectionEditModal
@@ -1019,6 +1136,8 @@ export function HomeTab({ setTab, broadcasts, messages, travelers = [], schedule
                 onClick={() => { onAddTile("currency"); setAddOpen(false); }} />
               <AddTileOption icon={CalendarDays} label="Info-Text" hint="Freie Kachel mit Überschrift und Inhalt"
                 onClick={() => { onAddTile("info"); setAddOpen(false); }} />
+              <AddTileOption icon={Users} label="Meet the Team" hint="Team-Vorstellung, blendet sich ab Tag 2 automatisch aus"
+                onClick={() => { onAddTile("team"); setAddOpen(false); }} />
             </div>
           </div>
         </div>
