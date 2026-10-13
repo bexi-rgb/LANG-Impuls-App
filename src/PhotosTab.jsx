@@ -468,12 +468,11 @@ function CommentSheet({ photo, autoFocus, onComment, onClose }) {
   const listRef = useRef(null);
   const count = photo.comments.length;
 
+  // Liste ist flex-col-reverse: startet von selbst beim neuesten Kommentar (unten) und
+  // bleibt dort, auch wenn die Tastatur den Platz verkleinert. Unten = scrollTop 0.
   const scrollToEnd = (smooth) => {
-    const el = listRef.current;
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+    listRef.current?.scrollTo({ top: 0, behavior: smooth ? "smooth" : "auto" });
   };
-  // Beim Öffnen direkt beim neuesten Kommentar; bei neuen Kommentaren mitscrollen
-  useEffect(() => { scrollToEnd(false); }, []);
   const prevCount = useRef(count);
   useEffect(() => {
     const grew = count > prevCount.current;
@@ -535,9 +534,11 @@ function CommentSheet({ photo, autoFocus, onComment, onClose }) {
         </div>
 
         {/* Liste */}
-        <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-3 space-y-4">
+        <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain flex flex-col-reverse px-4 py-3">
+          {/* mb-auto: wenige Kommentare stehen oben statt am Eingabefeld */}
+          <div className={`space-y-4 ${count === 0 ? "flex-1 flex flex-col" : "mb-auto"}`}>
           {count === 0 && (
-            <div className="h-full flex flex-col items-center justify-center text-center gap-1">
+            <div className="flex-1 flex flex-col items-center justify-center text-center gap-1">
               <MessageCircle className="w-8 h-8 text-white/30" />
               <p className="text-sm font-bold text-white/80">Noch keine Kommentare</p>
               <p style={{ color: C.silver }} className="text-[13px]">Schreib den ersten.</p>
@@ -555,6 +556,7 @@ function CommentSheet({ photo, autoFocus, onComment, onClose }) {
               </div>
             </div>
           ))}
+          </div>
         </div>
 
         {/* Eingabe */}
