@@ -67,7 +67,10 @@ export default function App() {
         tags: p.tags || [],
         comments: photoCommentsRemote
           .filter((c) => c.photo_id === p.id)
-          .map((c) => ({ id: c.id, author: travelers.find((t) => t.id === c.author_id)?.name || 'Unbekannt', text: c.text, time: shortTime(c.created_at) })),
+          .map((c) => {
+            const a = travelers.find((t) => t.id === c.author_id);
+            return { id: c.id, author: a?.name || 'Unbekannt', avatarUrl: a?.avatarUrl || '', text: c.text, time: shortTime(c.created_at) };
+          }),
       }))
     : photosLocal;
 

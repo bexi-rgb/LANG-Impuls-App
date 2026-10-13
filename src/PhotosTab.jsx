@@ -4,7 +4,7 @@ import {
   ChevronLeft, ChevronRight, SwitchCamera, Trash2,
 } from 'lucide-react';
 import { C, MONO, SUGGESTED_TAGS, PHOTO_GRADIENTS } from './constants.js';
-import { AppOverlay } from './shell.jsx';
+import { AppOverlay, Avatar } from './shell.jsx';
 
 export function SharePhotoModal({ user, onClose, onShare }) {
   const [image, setImage] = useState(null);      // data URL (Vorschau)
@@ -305,26 +305,32 @@ function FilterPill({ selected, onClick, children }) {
 }
 
 function PhotoViewer({ photos, index, onIndexChange, onClose, onTagClick, onComment, onDelete }) {
-  const [comment, setComment] = useState("");
   const [drag, setDrag] = useState({ x: 0, dragging: false });
   const startX = useRef(null);
   const photo = photos[index];
   const canPrev = index > 0;
   const canNext = index < photos.length - 1;
-  const goPrev = () => { if (canPrev) { onIndexChange(index - 1); setComment(""); } };
-  const goNext = () => { if (canNext) { onIndexChange(index + 1); setComment(""); } };
+  const goPrev = () => { if (canPrev) onIndexChange(index - 1); };
+  const goNext = () => { if (canNext) onIndexChange(index + 1); };
 
-  // Keyboard-Nav
+  // Kommentare als Bottom-Sheet über dem Foto (wie Instagram/TikTok)
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [focusInput, setFocusInput] = useState(false);
+  const openSheet = (withKeyboard = false) => { setFocusInput(withKeyboard); setSheetOpen(true); };
+  const last = photo.comments[photo.comments.length - 1];
+
+  // Keyboard-Nav (nicht beim Tippen im Kommentarfeld)
   useEffect(() => {
     const handler = (e) => {
+      if (e.key === "Escape") { if (sheetOpen) setSheetOpen(false); else onClose(); return; }
+      if (sheetOpen || e.target.tagName === "INPUT") return;
       if (e.key === "ArrowLeft") goPrev();
       else if (e.key === "ArrowRight") goNext();
-      else if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index]);
+  }, [index, sheetOpen]);
 
   // Touch-Swipe
   const onTouchStart = (e) => { startX.current = e.touches[0].clientX; setDrag({ x: 0, dragging: true }); };
@@ -341,23 +347,6 @@ function PhotoViewer({ photos, index, onIndexChange, onClose, onTagClick, onComm
     if (Math.abs(dx) > 60) {
       if (dx > 0 && canPrev) goPrev();
       else if (dx < 0 && canNext) goNext();
-    }
-  };
-
-  const commentRef = useRef(null);
-  const [sending, setSending] = useState(false);
-  const submitComment = async () => {
-    const text = comment.trim();
-    if (!text || sending) return; // kein Doppel-Senden bei langsamem Netz
-    setSending(true);
-    setComment("");
-    commentRef.current?.blur(); // Tastatur zu → Foto und Zurück-Button wieder voll sichtbar
-    try {
-      await onComment(text);
-    } catch {
-      setComment(text); // Speichern fehlgeschlagen → Text zurück ins Feld
-    } finally {
-      setSending(false);
     }
   };
 
@@ -382,9 +371,9 @@ function PhotoViewer({ photos, index, onIndexChange, onClose, onTagClick, onComm
         </div>
       </div>
 
-      {/* Bild-Bereich */}
+      {/* Bild-Bereich — füllt alles, Infos liegen unten drüber */}
       <div
-        className="flex-1 flex items-center justify-center relative overflow-hidden select-none"
+        className="flex-1 min-h-0 flex items-center justify-center relative overflow-hidden select-none"
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}>
@@ -393,7 +382,7 @@ function PhotoViewer({ photos, index, onIndexChange, onClose, onTagClick, onComm
           style={{
             transform: `translateX(${drag.x}px)`,
             transition: drag.dragging ? "none" : "transform 200ms ease-out",
-            background: PHOTO_GRADIENTS[photo.id] || PHOTO_GRADIENTS.p1,
+            background: photo.image ? "#000" : (PHOTO_GRADIENTS[photo.id] || PHOTO_GRADIENTS.p1),
           }}>
           {photo.image && (
             <img src={photo.image} alt={photo.title} className="max-w-full max-h-full object-contain" draggable={false} />
@@ -413,64 +402,182 @@ function PhotoViewer({ photos, index, onIndexChange, onClose, onTagClick, onComm
             <ChevronRight className="w-6 h-6" />
           </button>
         )}
-      </div>
 
-      {/* Info + Kommentare */}
-      <div className="shrink-0 max-h-[45%] flex flex-col" style={{ background: C.surface }}>
-        <div className="min-h-0 overflow-y-auto p-4 pb-2 space-y-3">
+        {/* Info-Overlay */}
+        <div className="absolute inset-x-0 bottom-0 px-4 pt-16 space-y-2.5"
+          style={{ background: "linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.6) 60%, transparent 100%)", paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
           <div>
             <p className="text-base font-extrabold text-white">{photo.title}</p>
-            <p style={{ color: C.silver, fontFamily: MONO }} className="text-[12px]">{photo.author} · {photo.time}</p>
+            <p style={{ fontFamily: MONO }} className="text-[12px] text-white/75">{photo.author} · {photo.time}</p>
           </div>
           {(photo.tags || []).length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {photo.tags.map((t) => (
                 <button key={t} onClick={() => onTagClick(t)}
-                  style={{ background: `${C.gold}26`, color: C.gold }}
+                  style={{ background: "rgba(0,0,0,0.45)", color: C.gold }}
                   className="px-2.5 py-0.5 rounded-full text-[11px] font-bold active:scale-95 transition">
                   #{t}
                 </button>
               ))}
             </div>
           )}
-          <div className="space-y-2 border-t pt-3" style={{ borderColor: `${C.charcoal}33` }}>
-            <span style={{ color: C.gold, fontFamily: MONO, letterSpacing: "0.15em" }} className="text-[11px] font-black uppercase block">
-              Kommentare ({photo.comments.length})
-            </span>
-            {photo.comments.length === 0 && (
-              <p style={{ color: C.silver }} className="text-[13px]">Noch keine Kommentare — schreib den ersten.</p>
+          {last && (
+            <button onClick={() => openSheet(false)} className="block w-full text-left active:opacity-70">
+              <p className="text-[13px] text-white truncate">
+                <span className="font-extrabold">{last.author}</span>{" "}
+                <span className="text-white/90">{last.text}</span>
+              </p>
+              {photo.comments.length > 1 && (
+                <p className="text-[12px] text-white/60 mt-0.5">Alle {photo.comments.length} Kommentare ansehen</p>
+              )}
+            </button>
+          )}
+          <div className="flex gap-2">
+            <button onClick={() => openSheet(true)}
+              className="flex-1 flex items-center gap-2 rounded-full px-4 py-2.5 text-left text-sm text-white/70 border border-white/20 bg-white/10 active:scale-[0.98] transition">
+              <MessageCircle className="w-4 h-4 shrink-0" /> Kommentieren …
+            </button>
+            {photo.comments.length > 0 && (
+              <button onClick={() => openSheet(false)} aria-label="Kommentare ansehen"
+                className="flex items-center gap-1.5 rounded-full px-3.5 text-sm font-bold text-white border border-white/20 bg-white/10 active:scale-95 transition">
+                <MessageCircle className="w-4 h-4" />{photo.comments.length}
+              </button>
             )}
-            {photo.comments.map((c) => (
-              <div key={c.id} style={{ background: `${C.charcoal}33` }} className="rounded-lg p-2.5">
-                <p className="text-[13px]" style={{ color: C.gold }}>
-                  <span className="font-extrabold">{c.author}</span>
-                  <span style={{ color: `${C.silver}f2`, fontFamily: MONO }} className="font-normal text-[11px]"> · {c.time}</span>
-                </p>
-                <p style={{ color: "#eee" }} className="text-[13px] mt-0.5">{c.text}</p>
-              </div>
-            ))}
           </div>
         </div>
-        {/* Eingabe außerhalb des Scrollbereichs → bleibt bei vielen Kommentaren sichtbar */}
-        <div className="shrink-0 px-4 pt-2 pb-3" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
+      </div>
+
+      {sheetOpen && (
+        <CommentSheet
+          photo={photo}
+          autoFocus={focusInput}
+          onComment={onComment}
+          onClose={() => setSheetOpen(false)}
+        />
+      )}
+    </AppOverlay>
+  );
+}
+
+function CommentSheet({ photo, autoFocus, onComment, onClose }) {
+  const [comment, setComment] = useState("");
+  const [sending, setSending] = useState(false);
+  const [dragY, setDragY] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragStart = useRef(null);
+  const listRef = useRef(null);
+  const count = photo.comments.length;
+
+  const scrollToEnd = (smooth) => {
+    const el = listRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+  };
+  // Beim Öffnen direkt beim neuesten Kommentar; bei neuen Kommentaren mitscrollen
+  useEffect(() => { scrollToEnd(false); }, []);
+  const prevCount = useRef(count);
+  useEffect(() => {
+    const grew = count > prevCount.current;
+    prevCount.current = count;
+    if (!grew) return;
+    // kurz warten, bis iOS die Tastatur-Höhe neu berechnet hat
+    const t = setTimeout(() => scrollToEnd(true), 50);
+    return () => clearTimeout(t);
+  }, [count]);
+
+  const submit = async () => {
+    const text = comment.trim();
+    if (!text || sending) return; // kein Doppel-Senden bei langsamem Netz
+    setSending(true);
+    setComment("");
+    try {
+      await onComment(text);
+    } catch {
+      setComment(text); // Speichern fehlgeschlagen → Text zurück ins Feld
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // Am Kopf nach unten ziehen → schließen
+  const onDragStart = (e) => { dragStart.current = e.touches[0].clientY; setDragging(true); };
+  const onDragMove = (e) => {
+    if (dragStart.current === null) return;
+    setDragY(Math.max(0, e.touches[0].clientY - dragStart.current));
+  };
+  const onDragEnd = () => {
+    dragStart.current = null;
+    setDragging(false);
+    if (dragY > 90) onClose();
+    else setDragY(0);
+  };
+
+  return (
+    <div className="absolute inset-0 z-10 flex flex-col justify-end" aria-label="Kommentare">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div
+        style={{
+          background: C.surface,
+          transform: `translateY(${dragY}px)`,
+          transition: dragging ? "none" : "transform 200ms ease-out",
+        }}
+        className="relative h-[72%] min-h-[260px] rounded-t-3xl flex flex-col fadeup shadow-2xl">
+        {/* Kopf mit Griff */}
+        <div className="shrink-0 pt-2.5 pb-3 px-4 border-b relative touch-none" style={{ borderColor: `${C.charcoal}55` }}
+          onTouchStart={onDragStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd}>
+          <div className="mx-auto w-10 h-1 rounded-full bg-white/25 mb-2.5" />
+          <p className="text-center text-sm font-extrabold text-white">
+            {count === 1 ? "1 Kommentar" : `${count} Kommentare`}
+          </p>
+          <button onClick={onClose} aria-label="Kommentare schließen"
+            className="absolute right-3 top-3 p-1.5 rounded-full text-white/70 active:scale-95" style={{ background: `${C.charcoal}55` }}>
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Liste */}
+        <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-3 space-y-4">
+          {count === 0 && (
+            <div className="h-full flex flex-col items-center justify-center text-center gap-1">
+              <MessageCircle className="w-8 h-8 text-white/30" />
+              <p className="text-sm font-bold text-white/80">Noch keine Kommentare</p>
+              <p style={{ color: C.silver }} className="text-[13px]">Schreib den ersten.</p>
+            </div>
+          )}
+          {photo.comments.map((c) => (
+            <div key={c.id} className="flex gap-3">
+              <Avatar user={{ name: c.author, avatarUrl: c.avatarUrl }} size={32} />
+              <div className="min-w-0 flex-1">
+                <p className="text-[12px]">
+                  <span className="font-extrabold text-white">{c.author}</span>
+                  <span style={{ color: C.silver, fontFamily: MONO }} className="text-[11px]"> · {c.time}</span>
+                </p>
+                <p style={{ color: "#eee" }} className="text-sm leading-snug break-words">{c.text}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Eingabe */}
+        <div className="shrink-0 px-3 pt-2.5 border-t" style={{ borderColor: `${C.charcoal}55`, paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
           <div className="flex gap-2">
             {/* text-base (16px) wie im Chat — kleinere Eingabefelder zoomt iOS beim Fokussieren */}
             <input
-              ref={commentRef}
+              autoFocus={autoFocus}
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && submitComment()}
+              onKeyDown={(e) => e.key === "Enter" && submit()}
               placeholder="Kommentieren …"
+              enterKeyHint="send"
               style={{ background: `${C.charcoal}40`, borderColor: `${C.charcoal}66` }}
-              className="flex-1 border rounded-xl px-3 py-2 text-base text-white placeholder:opacity-70 focus:outline-none"
+              className="flex-1 min-w-0 border rounded-full px-4 py-2 text-base text-white placeholder:opacity-70 focus:outline-none"
             />
-            <button type="button" onClick={submitComment} disabled={sending} style={{ background: C.gold }}
-              className="px-3 rounded-xl text-white active:scale-95 transition disabled:opacity-50" aria-label="Kommentar senden">
+            <button type="button" onClick={submit} disabled={sending || !comment.trim()} style={{ background: C.gold }}
+              className="w-11 shrink-0 flex items-center justify-center rounded-full text-white active:scale-95 transition disabled:opacity-40" aria-label="Kommentar senden">
               <Send className="w-4 h-4" />
             </button>
           </div>
         </div>
       </div>
-    </AppOverlay>
+    </div>
   );
 }
