@@ -12,7 +12,7 @@ import { C, MONO, TYPE_META, evDate, fmtDayShort, fmtDayLong, countdownLabel, ma
 import { PushPrompt } from './PushPrompt.jsx';
 import { Label, EditPencil, HomeSectionEditModal } from './shell.jsx';
 import { useWeather, WEATHER_LOCATIONS, describeWeather, formatFetchedAt } from './api/weather.js';
-import { useFlight, CURRENT_PROVIDER, isLiveProvider } from './api/flights.js';
+import { useFlight } from './api/flights.js';
 import { useExchangeRate } from './api/currency.js';
 
 export function NextUpCard({ schedule, onOpenDoc, onOpenPlan }) {
@@ -100,9 +100,8 @@ export const FLIGHT_FIELDS = [
   { key: "lastUpdated", label: "Zuletzt aktualisiert", placeholder: "vor 3 Min", hint: "Wird von der API automatisch gesetzt sobald angebunden" },
 ];
 
-export function FlightCard({ flight, personal }) {
-  const { data: liveFlight, loading: flightLoading } = useFlight(flight.number, flight);
-  const f = liveFlight || flight;
+export function FlightCard({ tileId, flight, personal }) {
+  const { data: f, hasLive, nextCheckAt } = useFlight(tileId, flight);
   const s = FLIGHT_STATUS[f.status] || FLIGHT_STATUS.SCHEDULED;
   const statusColor = STATUS_COLOR_MAP[s.color] || C.silver;
   const delay = Number(f.delayMinutes) || 0;
@@ -216,10 +215,12 @@ export function FlightCard({ flight, personal }) {
         <div className="flex items-center justify-between pt-1 gap-2" style={{ borderTop: `1px solid ${C.charcoal}33` }}>
           <span style={{ color: C.silver, fontFamily: MONO }} className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 pt-2">
             <span style={{ background: C.teal }} className="w-1 h-1 rounded-full pulse" />
-            {isLiveProvider ? "Live" : "Mock"} · Aktualisiert {f.lastUpdated}
+            {hasLive ? `Live · Aktualisiert ${f.lastUpdated}` : "Manuelle Daten"}
           </span>
-          {!isLiveProvider && (
-            <span style={{ color: C.silver, fontFamily: MONO }} className="text-[9px] opacity-50 pt-2">Manuelle Daten</span>
+          {nextCheckAt && (
+            <span style={{ color: C.silver, fontFamily: MONO }} className="text-[9px] opacity-50 pt-2">
+              {hasLive ? "Nächstes Update" : "Live ab"} {new Date(nextCheckAt).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+            </span>
           )}
         </div>
       </div>
@@ -906,7 +907,7 @@ export function HomeTab({ setTab, broadcasts, messages, travelers = [], schedule
                 <EditPencil onClick={() => setEditing(tile.id)} />
               )}
 
-              {tile.type === "flight" && <FlightCard flight={tile.data} personal={personal} />}
+              {tile.type === "flight" && <FlightCard tileId={tile.id} flight={tile.data} personal={personal} />}
               {tile.type === "hotel" && <HotelCard hotel={tile.data} personal={personal} onOpenDetail={editMode ? null : () => setDetailTileId(tile.id)} />}
               {tile.type === "info" && <InfoTileCard data={tile.data} />}
               {tile.type === "weather" && <WeatherCard data={tile.data} />}

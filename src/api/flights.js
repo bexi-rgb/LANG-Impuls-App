@@ -1,163 +1,88 @@
 /*
  * Flug-Integration.
  *
- * Aktueller Adapter: MOCK — gibt die Tile-Daten unverändert zurück.
- * Alternative Adapter (mit API-Key aktivierbar):
- *   • AviationStack (100 Requests/Monat gratis, danach $50/Monat)
- *     https://aviationstack.com
- *   • AeroDataBox (~500 Requests gratis, danach ab $10/Monat)
- *     https://aerodatabox.com
- *   • FlightAware AeroAPI (kein Free-Tier, beste Datenqualität, $0.004/Request)
- *     https://flightaware.com/commercial/aeroapi
+ * Live-Daten kommen über die Serverless Function api/flight.js (AviationStack,
+ * Key nur serverseitig als AVIATIONSTACK_KEY in Vercel). Die Funktion fragt
+ * nur zu festen Zeitpunkten rund um den Abflug ab und cacht das Ergebnis für
+ * alle Reisenden. Der Client fragt nur die Funktion — und zwar erneut erst
+ * zum nächsten geplanten Abfragezeitpunkt (nextCheckAt).
  *
- * Aktivierung eines Live-Adapters:
- *   1. Registrierung beim Anbieter, API-Key holen
- *   2. `.env.local` im Projekt-Root anlegen mit:
- *        VITE_FLIGHT_API_PROVIDER=aviationstack
- *        VITE_AVIATIONSTACK_KEY=dein_key
- *   3. Dev-Server neu starten
- *
- * WICHTIG: Die `.env.local` niemals ins Git-Repo einchecken (steht in .gitignore).
- * VITE_-Präfix macht Env-Variablen im Browser sichtbar — also NIE Secrets die
- * du wirklich privat halten musst. Für Production-Deployments den API-Call auf
- * ein Backend (Vercel Serverless Function o.Ä.) verlagern.
+ * Ohne Supabase/Key, vor dem ersten Abfragezeitpunkt oder bei Fehlern zeigt
+ * die Kachel einfach die im Admin-Modus gepflegten Daten.
  */
 
 import { useState, useEffect } from 'react';
+import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
 
-const PROVIDER = import.meta.env.VITE_FLIGHT_API_PROVIDER || 'mock';
+const RECHECK_BUFFER_MS = 30 * 1000; // kurz nach dem Slot fragen, damit der Server schon fertig ist
 
-/**
- * Normalisiertes Flug-Objekt für die UI. Alle Adapter mappen ihre
- * Rohdaten auf dieses Format, damit FlightCard sich nicht ändert.
- */
-function normalizeFlight(raw) {
-  return {
-    number: raw.number,
-    airline: raw.airline,
-    aircraft: raw.aircraft,
-    status: raw.status,               // 'ON_TIME' | 'DELAYED' | 'BOARDING' | ...
-    fromCode: raw.fromCode,
-    fromCity: raw.fromCity,
-    fromTerminal: raw.fromTerminal,
-    fromGate: raw.fromGate,
-    fromDate: raw.fromDate,
-    fromScheduled: raw.fromScheduled,
-    fromEstimated: raw.fromEstimated,
-    toCode: raw.toCode,
-    toCity: raw.toCity,
-    toTerminal: raw.toTerminal,
-    toDate: raw.toDate,
-    toScheduled: raw.toScheduled,
-    toEstimated: raw.toEstimated,
-    delayMinutes: raw.delayMinutes || 0,
-    lastUpdated: raw.lastUpdated || 'gerade eben',
-  };
+function formatAgo(iso) {
+  if (!iso) return null;
+  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (min < 1) return 'gerade eben';
+  if (min < 60) return `vor ${min} Min`;
+  const h = Math.round(min / 60);
+  return h < 24 ? `vor ${h} Std` : new Date(iso).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-// ── MOCK-Adapter ──────────────────────────────────────────────────
-async function fetchMock(flightNumber, tileData) {
-  // Kein Netzwerk-Call, gibt einfach die Tile-Daten zurück.
-  return normalizeFlight(tileData);
-}
-
-// ── AviationStack-Adapter (Skelett) ───────────────────────────────
-async function fetchAviationStack(flightNumber, tileData) {
-  const key = import.meta.env.VITE_AVIATIONSTACK_KEY;
-  if (!key) throw new Error('VITE_AVIATIONSTACK_KEY nicht gesetzt');
-
-  const url = new URL('https://api.aviationstack.com/v1/flights');
-  url.searchParams.set('access_key', key);
-  url.searchParams.set('flight_iata', flightNumber.replace(/\s+/g, ''));
-
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`AviationStack: ${res.status}`);
-  const data = await res.json();
-  const flight = data.data?.[0];
-  if (!flight) throw new Error(`Flug ${flightNumber} nicht gefunden`);
-
-  // Mapping von AviationStack-Feldern auf unser normalisiertes Format.
-  const dep = flight.departure || {};
-  const arr = flight.arrival || {};
-  const statusMap = {
-    scheduled: 'SCHEDULED', active: 'DEPARTED', landed: 'ARRIVED',
-    cancelled: 'CANCELLED', incident: 'CANCELLED', diverted: 'DELAYED',
-  };
-
-  return normalizeFlight({
-    ...tileData, // Fallbacks aus Tile-Daten übernehmen
-    number: flightNumber,
-    airline: flight.airline?.name || tileData.airline,
-    status: statusMap[flight.flight_status] || 'SCHEDULED',
-    fromTerminal: dep.terminal || tileData.fromTerminal,
-    fromGate: dep.gate || tileData.fromGate,
-    fromScheduled: dep.scheduled?.slice(11, 16) || tileData.fromScheduled,
-    fromEstimated: dep.estimated?.slice(11, 16) || dep.scheduled?.slice(11, 16),
-    toTerminal: arr.terminal || tileData.toTerminal,
-    toScheduled: arr.scheduled?.slice(11, 16) || tileData.toScheduled,
-    toEstimated: arr.estimated?.slice(11, 16) || arr.scheduled?.slice(11, 16),
-    delayMinutes: dep.delay || 0,
-    lastUpdated: 'gerade eben',
+async function fetchLive(tileId) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return null;
+  const res = await fetch(`/api/flight?tile=${encodeURIComponent(tileId)}`, {
+    headers: { Authorization: `Bearer ${session.access_token}` },
   });
-}
-
-// ── Adapter-Auswahl ───────────────────────────────────────────────
-const ADAPTERS = {
-  mock: fetchMock,
-  aviationstack: fetchAviationStack,
-};
-
-export const CURRENT_PROVIDER = PROVIDER;
-export const isLiveProvider = PROVIDER !== 'mock';
-
-/**
- * Öffentliches API — sucht den Adapter für den aktuellen Provider aus.
- * Bei Fehler fällt es auf die Tile-Daten zurück, damit die UI nicht bricht.
- */
-export async function fetchFlight(flightNumber, tileData) {
-  const adapter = ADAPTERS[PROVIDER] || ADAPTERS.mock;
-  try {
-    return await adapter(flightNumber, tileData);
-  } catch (err) {
-    console.warn(`[flights] ${PROVIDER}-Adapter fehlgeschlagen, Fallback auf Tile-Daten:`, err.message);
-    return normalizeFlight(tileData);
-  }
+  if (!res.ok) return null;
+  return res.json();
 }
 
 /**
- * React-Hook — lädt einen Flug und refresht ihn periodisch.
- * Im MOCK-Modus deaktiviert (keine Netzwerk-Kosten), da die Daten
- * ohnehin aus dem lokalen State kommen.
+ * Liefert die Kachel-Daten, überlagert mit Live-Daten sobald vorhanden.
+ * live: Server ist konfiguriert; nextCheckAt: nächste geplante Abfrage.
  */
-export function useFlight(flightNumber, tileData, refreshMs = 15 * 60 * 1000) {
-  const [state, setState] = useState({
-    data: normalizeFlight(tileData),
-    error: null,
-    loading: false,
-    live: isLiveProvider,
-  });
+export function useFlight(tileId, tileData) {
+  const [live, setLive] = useState(null);
+  const [, setTick] = useState(0); // für "vor X Min"
 
   useEffect(() => {
-    // Bei geändertem tileData: sofort spiegeln, damit Editier-Modus reagiert
-    setState((s) => ({ ...s, data: normalizeFlight(tileData) }));
-  }, [JSON.stringify(tileData)]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!isLiveProvider || !flightNumber) return;
+    if (!isSupabaseConfigured || !tileId) return;
     let cancelled = false;
+    let timer;
     const load = async () => {
-      setState((s) => ({ ...s, loading: true }));
+      clearTimeout(timer);
       try {
-        const d = await fetchFlight(flightNumber, tileData);
-        if (!cancelled) setState({ data: d, error: null, loading: false, live: true });
+        const r = await fetchLive(tileId);
+        if (cancelled || !r) return;
+        setLive(r);
+        if (r.nextCheckAt) {
+          const wait = new Date(r.nextCheckAt).getTime() - Date.now() + RECHECK_BUFFER_MS;
+          timer = setTimeout(load, Math.min(Math.max(wait, RECHECK_BUFFER_MS), 2 ** 31 - 1));
+        }
       } catch (err) {
-        if (!cancelled) setState((s) => ({ ...s, error: err.message, loading: false }));
+        console.warn('[flights]', err.message);
       }
     };
     load();
-    const id = setInterval(load, refreshMs);
-    return () => { cancelled = true; clearInterval(id); };
-  }, [flightNumber, refreshMs]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Handy aus dem Standby → Timer können verpasst sein, einmal nachfragen
+    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    const tick = setInterval(() => setTick((n) => n + 1), 60 * 1000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      clearInterval(tick);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [tileId, tileData.number, tileData.fromDate, tileData.fromScheduled, tileData.fromCode]);
 
-  return state;
+  const hasLive = !!live?.data;
+  return {
+    data: {
+      ...tileData,
+      ...(live?.data || {}),
+      lastUpdated: hasLive ? formatAgo(live.fetchedAt) : tileData.lastUpdated,
+    },
+    live: !!live?.live,
+    hasLive,
+    nextCheckAt: live?.nextCheckAt || null,
+  };
 }

@@ -90,22 +90,16 @@ Aktuelle Bedingungen + 4-Tage-Vorhersage werden live von [Open-Meteo](https://op
 - Attribution: „Open-Meteo" ist als kleiner Hinweis unter jeder Karte sichtbar
 - Limit: 10.000 Requests/Tag (auch bei 100 aktiven Reisenden weit unterhalb der Grenze)
 
-### Flug — Adapter-Struktur (aktuell Mock, live-ready)
+### Flug — Live-Daten über AviationStack
 
-Die `FlightCard` konsumiert einen Adapter in `src/api/flights.js`. Aktueller Default ist `mock` — die Daten kommen aus den Tile-Feldern, die Rebekka im Admin-Modus pflegt. Für Live-Daten:
+Die `FlightCard` lädt Live-Daten über die Serverless Function `api/flight.js`. Flugnummer, Abflughafen, -datum und -zeit kommen aus der Kachel, die Rebekka im Admin-Modus pflegt; Live-Werte (Status, Gate, Terminal, geschätzte Zeiten, Verspätung) überlagern die Kachel-Felder.
 
-1. Registrierung bei einem der folgenden Anbieter:
-   - **[AviationStack](https://aviationstack.com)** — 100 Requests/Monat kostenlos, danach $50/Monat. Schnell aufgesetzt, gut für Prototypen und kleinere Reisegruppen.
-   - **[AeroDataBox](https://aerodatabox.com)** — Freemium mit ~500 Requests, ab $10/Monat. Beste Preis/Leistung für kleine Concierge-Services.
-   - **[FlightAware AeroAPI](https://flightaware.com/commercial/aeroapi)** — Kein Free-Tier, ab $0,004/Request. Beste Datenqualität und ADS-B-Positionen.
+- **Key:** in Vercel als `AVIATIONSTACK_KEY` hinterlegen (ohne `VITE_`-Präfix, bleibt serverseitig). Free-Plan: 100 Requests/Monat, nur HTTP.
+- **Abfrage-Plan** (Ortszeit Abflughafen): 8 h und 4 h vor Abflug, ab 3,5 h vorher alle 15 Min bis zum Abflug (bei Verspätung weiter bis zum neuen Abflug, max. +3 h), plus einmal 15 Min nach geplanter Landung. ≈ 18 Requests pro Flug, harte Obergrenze 40.
+- **Cache:** Ergebnis in `app_config` unter `flight:<tileId>` — ein API-Call pro Zeitpunkt, egal wie viele Reisende die App offen haben.
+- Plan-Konstanten und Flughafen-Zeitzonen (`AIRPORT_TZ`) stehen oben in `api/flight.js` — unbekannter Flughafen = keine Live-Daten.
+- Ohne Key oder vor der ersten Abfrage zeigt die Kachel „Manuelle Daten" bzw. „Live ab …".
 
-2. `.env.example` nach `.env.local` kopieren, `VITE_FLIGHT_API_PROVIDER=aviationstack` setzen, Key eintragen, Dev-Server neu starten.
-
-3. Die Kachel zeigt automatisch „Live" statt „Mock" im Footer.
-
-Für AeroDataBox oder FlightAware muss ein weiterer Adapter in `src/api/flights.js` ergänzt werden — die Struktur ist vorgegeben, es sind ~20 Zeilen Mapping-Code.
-
-**Sicherheitshinweis:** `VITE_*`-Env-Variablen sind im Browser sichtbar. Für Produktion sollten API-Keys über ein Backend (Vercel Serverless Function, Cloudflare Worker) laufen, damit sie nicht im Frontend-Bundle landen.
 
 ## Datenspeicherung
 
@@ -133,7 +127,6 @@ Für AeroDataBox oder FlightAware muss ein weiterer Adapter in `src/api/flights.
 
 ## Nächste Ausbaustufen
 
-- [ ] Flug-API-Adapter für AeroDataBox oder FlightAware (Skelett existiert in `src/api/flights.js`)
 - [ ] Geräteübergreifende Persistenz via Supabase (siehe oben)
 - [ ] Push-Notifications via Firebase Cloud Messaging
 - [ ] Rebekka-Admin-Editor für Amenities/Öffnungszeiten pro Hotel
