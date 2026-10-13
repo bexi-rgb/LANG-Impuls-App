@@ -6,7 +6,7 @@ import {
 import { C, MONO, DOC_TYPES } from './constants.js';
 import { Label } from './shell.jsx';
 import { isSupabaseConfigured, getSignedUrl } from './lib/supabase.js';
-import { PACKLIST, toPlainList, downloadPacklist } from './packlist.js';
+import { toPlainList, downloadPacklist } from './packlist.js';
 
 const PACK_OPTIONS = [
   { format: "txt", title: "Textdatei (.txt)", hint: "Mit Kategorien – zum Ausdrucken oder Lesen" },
@@ -45,7 +45,7 @@ export function PacklistModal({ onClose }) {
             <p className="text-sm font-extrabold">{copied ? "Kopiert!" : "Liste kopieren"}</p>
             <p className="text-[12px] opacity-90 leading-snug">
               {copied
-                ? "Jetzt in einer neuen Liste einfügen – jede Zeile wird ein eigener Punkt."
+                ? "In Erinnerungen: „Neue Erinnerung“ antippen und in die leere Zeile einfügen – jede Zeile wird ein eigener Punkt."
                 : "Für Apple Erinnerungen, Microsoft To Do, Google Keep oder Todoist"}
             </p>
           </div>
@@ -223,12 +223,7 @@ export function DocumentsTab({ user, docs, travelers, focusId, onAddDoc }) {
         <div style={{ background: `${C.gold}1a`, borderColor: `${C.gold}40` }} className="w-14 h-14 rounded-xl border flex items-center justify-center shrink-0">
           <Luggage className="w-6 h-6" style={{ color: C.gold }} />
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-base font-extrabold">Packliste</p>
-          <p style={{ color: C.silver }} className="text-sm mt-0.5 leading-relaxed">
-            {PACKLIST.reduce((n, c) => n + c.items.length, 0)} Punkte zum Abhaken – in deine Erinnerungen, To Do oder als Datei.
-          </p>
-        </div>
+        <p className="min-w-0 flex-1 text-base font-extrabold">Packliste</p>
         <Download className="w-5 h-5 shrink-0" style={{ color: C.gold }} />
       </button>
 

@@ -314,7 +314,7 @@ export default function App() {
       // Bestätigte Zeile sofort anzeigen; Fehler an den Viewer weitergeben,
       // damit der Text nicht stillschweigend verschwindet.
       return insertRow('photo_comments', { photo_id: photoId, author_id: user.id, text: comment.text })
-        .then(mergePhotoComment)
+        .then((row) => { mergePhotoComment(row); triggerPush('comment', row?.id); })
         .catch((e) => {
           console.warn('[comment]', e.message);
           setNotifications((n) => [`Kommentar konnte nicht gespeichert werden: ${e.message}`, ...n]);
