@@ -88,6 +88,8 @@ export default function App() {
         menuPath: e.menu_path || undefined, menu: e.menu_path ? getPublicUrl('photos', e.menu_path) : undefined,
         sponsorName: e.sponsor_name || undefined,
         sponsorLogoPath: e.sponsor_logo_path || undefined, sponsorLogo: e.sponsor_logo_path ? getPublicUrl('photos', e.sponsor_logo_path) : undefined,
+        factText: e.fact_text || undefined,
+        factImagePath: e.fact_image_path || undefined, factImage: e.fact_image_path ? getPublicUrl('photos', e.fact_image_path) : undefined,
       }))
     : scheduleLocal;
 
@@ -428,9 +430,9 @@ export default function App() {
     setNotifications((n) => [`Neues Dokument abgelegt: „${d.title}\u201C (${owner})`, ...n]);
   };
   const openDoc = (docId) => { setDocFocus(docId); setTab("documents"); };
-  // Neu gewählte Menükarte / Sponsor-Logo (menuFile, sponsorLogoFile) hochladen
+  // Neu gewählte Menükarte / Sponsor-Logo / Fakt-Bild (menuFile, sponsorLogoFile, factImageFile) hochladen
   // bzw. im Demo-Modus als Data-URL ablegen.
-  const EVENT_MEDIA = [['menuFile', 'menu', 'menuPath'], ['sponsorLogoFile', 'sponsorLogo', 'sponsorLogoPath']];
+  const EVENT_MEDIA = [['menuFile', 'menu', 'menuPath'], ['sponsorLogoFile', 'sponsorLogo', 'sponsorLogoPath'], ['factImageFile', 'factImage', 'factImagePath']];
   const prepareEventMedia = async (ev) => {
     const out = { ...ev };
     for (const [fileKey, urlKey, pathKey] of EVENT_MEDIA) {
@@ -450,10 +452,11 @@ export default function App() {
   const scheduleRow = (ev) => ({
     date: ev.date, time: ev.time, title: ev.title, location: ev.location || null, type: ev.type, doc_id: ev.docId || null,
     menu_path: ev.menuPath || null, sponsor_name: ev.sponsorName || null, sponsor_logo_path: ev.sponsorLogoPath || null,
+    fact_text: ev.factText || null, fact_image_path: ev.factImagePath || null,
   });
   // Ersetzte oder entfernte Bilder aus dem Storage löschen
   const removeStaleMedia = (prev, next) => {
-    for (const key of ['menuPath', 'sponsorLogoPath']) {
+    for (const key of ['menuPath', 'sponsorLogoPath', 'factImagePath']) {
       if (prev?.[key] && prev[key] !== next?.[key]) deleteFile('photos', prev[key]).catch(() => {});
     }
   };

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Calendar, Clock, MapPin, PlaneTakeoff, PlaneLanding, CalendarDays, Bus,
   Utensils, Landmark, Plus, Edit3, Check, X, Trash2, Download, ArrowRight,
-  ChevronLeft, ChevronRight, QrCode, BookOpen, ImagePlus, Loader2,
+  ChevronLeft, ChevronRight, ChevronDown, QrCode, BookOpen, ImagePlus, Loader2, Lightbulb,
 } from 'lucide-react';
 import { C, MONO, TRIP_DAYS, TYPE_META, evDate, fmtDayLong, fmtDayShort, downloadICS, mapsUrl } from './constants.js';
 import { Label, AppOverlay } from './shell.jsx';
@@ -73,6 +73,41 @@ function MenuViewer({ event, onClose }) {
   );
 }
 
+// „Fakt“-Button am Termin: klappt Infos + optionales Bild auf.
+// factText: eine Zeile pro Punkt — eine Zeile wird als Highlight, mehrere als Liste gezeigt.
+function FactBox({ event, open, onToggle }) {
+  const lines = (event.factText || "").split("\n").map((l) => l.replace(/^\s*[-•*]\s*/, "").trim()).filter(Boolean);
+  return (
+    <div className="mt-3">
+      <button onClick={onToggle} aria-expanded={open} aria-label={`Fakten zu ${event.title} ${open ? "ausblenden" : "anzeigen"}`}
+        style={{ background: `${C.gold}1a`, borderColor: `${C.gold}40`, color: C.gold, letterSpacing: "0.12em" }}
+        className="px-2.5 py-1 rounded-lg border text-[12px] font-black uppercase flex items-center gap-1.5 active:scale-95 transition">
+        <Lightbulb className="w-3.5 h-3.5" /> {lines.length > 1 ? "Fakten" : "Fakt"}
+        <ChevronDown className="w-3.5 h-3.5 transition-transform" style={{ transform: open ? "rotate(180deg)" : undefined }} />
+      </button>
+      {open && (
+        <div style={{ background: `${C.charcoal}33`, borderColor: `${C.gold}33` }} className="mt-2.5 rounded-xl border overflow-hidden fadeup">
+          {event.factImage && (
+            <div className="bg-black flex justify-center">
+              <img src={event.factImage} alt={event.title} className="max-w-full max-h-72 object-contain" />
+            </div>
+          )}
+          {lines.length === 1 && <p className="p-3 text-sm leading-relaxed">{lines[0]}</p>}
+          {lines.length > 1 && (
+            <ul className="p-3 space-y-1.5">
+              {lines.map((l, i) => (
+                <li key={i} className="text-sm leading-snug flex gap-2">
+                  <span style={{ color: C.gold }} className="font-black">•</span><span>{l}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ScheduleEventModal({ initial, defaultDate, docs = [], onSave, onDelete, onClose }) {
   const isEdit = !!initial?.id;
   const [date, setDate] = useState(initial?.date || defaultDate || TRIP_DAYS[0]);
@@ -84,6 +119,8 @@ export function ScheduleEventModal({ initial, defaultDate, docs = [], onSave, on
   const [menu, setMenu] = useState(initial?.menu ? { url: initial.menu } : null);
   const [sponsorName, setSponsorName] = useState(initial?.sponsorName || "");
   const [sponsorLogo, setSponsorLogo] = useState(initial?.sponsorLogo ? { url: initial.sponsorLogo } : null);
+  const [factText, setFactText] = useState(initial?.factText || "");
+  const [factImage, setFactImage] = useState(initial?.factImage ? { url: initial.factImage } : null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const input = { background: `${C.charcoal}4d`, borderColor: `${C.charcoal}80` };
@@ -105,6 +142,10 @@ export function ScheduleEventModal({ initial, defaultDate, docs = [], onSave, on
       sponsorLogo: sponsorLogo && !sponsorLogo.file ? sponsorLogo.url : undefined,
       sponsorLogoPath: sponsorLogo && !sponsorLogo.file ? initial?.sponsorLogoPath : undefined,
       sponsorLogoFile: sponsorLogo?.file,
+      factText: factText.trim() || undefined,
+      factImage: factImage && !factImage.file ? factImage.url : undefined,
+      factImagePath: factImage && !factImage.file ? initial?.factImagePath : undefined,
+      factImageFile: factImage?.file,
     };
     setSaving(true);
     setSaveError(null);
@@ -197,6 +238,13 @@ export function ScheduleEventModal({ initial, defaultDate, docs = [], onSave, on
           <ImagePickField label="Sponsor-Logo (optional)" value={sponsorLogo} onChange={setSponsorLogo}
             prepare={(f) => downscaleImage(f, 600, 0.92, 'image/png')}
             previewClass="w-20 h-10 p-1" previewStyle={{ background: "#fff" }} />
+
+          <textarea value={factText} onChange={(e) => setFactText(e.target.value)} rows={4}
+            placeholder={"Fakt / Info (optional) — eine Zeile pro Punkt.\nNur eine Zeile = Highlight, mehrere = Liste."}
+            style={input} className="w-full border rounded-xl px-3 py-2.5 text-sm text-white placeholder:opacity-70 focus:outline-none resize-y" />
+          <ImagePickField label="Fakt-Bild (optional)" value={factImage} onChange={setFactImage}
+            prepare={(f) => downscaleImage(f, 1600, 0.85)}
+            previewClass="w-12 h-16" previewStyle={{ background: "#000" }} />
         </div>
 
         {saveError && <p className="text-sm" style={{ color: "#e57373" }}>{saveError}</p>}
@@ -223,6 +271,7 @@ export function ScheduleTab({ schedule, docs = [], onOpenDoc, isAdmin = false, o
   const [day, setDay] = useState(0);
   const [editing, setEditing] = useState(null); // null | { mode: 'add'|'edit', event? }
   const [menuEvent, setMenuEvent] = useState(null); // Termin, dessen Menükarte offen ist
+  const [factId, setFactId] = useState(null); // Termin, dessen Fakten-Box aufgeklappt ist
   const startX = useRef(null);
   const clamp = (i) => Math.max(0, Math.min(TRIP_DAYS.length - 1, i));
   const onDown = (e) => { startX.current = e.clientX; };
@@ -319,6 +368,9 @@ export function ScheduleTab({ schedule, docs = [], onOpenDoc, isAdmin = false, o
                     className="text-sm mt-1 flex items-center gap-1.5 underline decoration-dotted underline-offset-2 hover:text-white active:opacity-70">
                     <MapPin className="w-3.5 h-3.5 shrink-0 opacity-80" />{e.location}
                   </a>
+                )}
+                {(e.factText || e.factImage) && (
+                  <FactBox event={e} open={factId === e.id} onToggle={() => setFactId((id) => (id === e.id ? null : e.id))} />
                 )}
                 {e.menu && (
                   <button onClick={() => setMenuEvent(e)} aria-label={`Menü für ${e.title} ansehen`}
