@@ -32,24 +32,50 @@ function shortTime(iso) {
   return new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 }
 
+// Ausstehende eigene Nachrichten ausblenden, sobald Realtime die echte Zeile
+// schon geliefert hat (kann vor der Antwort auf das Insert ankommen).
+// Zuordnung über Absender, Kanal, Text und Bild; nur Zeilen ab kurz vor dem
+// Absenden zählen (Toleranz für abweichende Geräteuhr), damit ein älteres
+// gleichlautendes "Hallo" die neue Nachricht nicht verschluckt.
+function visiblePending(pending, remoteRows) {
+  if (!pending.length) return [];
+  const claimed = new Set();
+  return pending.filter((p) => {
+    if (p.status === 'failed') return true;
+    const since = Date.parse(p.createdAt) - 60000;
+    const match = remoteRows.find((r) => !claimed.has(r.id)
+      && r.sender_id === p.senderId && r.channel === p.channel
+      && (r.text || '') === (p.text || '') && !!r.image_path === !!p.file
+      && Date.parse(r.created_at) >= since);
+    if (match) { claimed.add(match.id); return false; }
+    return true;
+  });
+}
+
 export default function App() {
   // ── Persistierter State ─────────────────────────────────────────
   // travelers: bei Supabase-Konfiguration live aus der DB (inkl. Realtime),
   // sonst lokaler Demo-Fallback.
   const [travelersLocal, setTravelersLocal] = usePersistentState('travelers', INITIAL_TRAVELERS);
-  const { data: travelersRemote } = useCollection('travelers', { orderBy: 'created_at' });
+  // pollMs: Sicherheitsnetz, falls die Liste beim Start leer geladen wurde (→ "Unbekannt" im Chat)
+  const { data: travelersRemote } = useCollection('travelers', { orderBy: 'created_at', pollMs: 60000 });
   const travelers = isSupabaseConfigured
     ? travelersRemote.map((t) => ({ ...t, avatarUrl: t.avatar_url || '', roomType: t.room_type || '' }))
     : travelersLocal;
   const [messagesLocal, setMessagesLocal] = usePersistentState('messages', INITIAL_MESSAGES);
-  const { data: messagesRemote } = useCollection('messages', { orderBy: 'created_at' });
+  const { data: messagesRemote, mergeRow: mergeMessage } = useCollection('messages', { orderBy: 'created_at', liveMerge: true });
+  // Eigene Nachrichten, die noch unterwegs sind (oder fehlgeschlagen) — erscheinen sofort im Chat
+  const [pendingMessages, setPendingMessages] = useState([]);
   // Eigene, noch nicht vom Server bestätigte Reaktionen (optimistisch)
   const [reactionOverrides, setReactionOverrides] = useState({});
   useEffect(() => { setReactionOverrides({}); }, [messagesRemote]);
   // Lokal schon als gelesen markierte Nachrichten (Punkt verschwindet sofort)
   const [readIds, setReadIds] = useState(() => new Set());
   const messages = isSupabaseConfigured
-    ? messagesRemote.map((m) => ({ id: m.id, channel: m.channel, senderId: m.sender_id, text: m.text, image: m.image_path ? getPublicUrl('photos', m.image_path) : null, status: readIds.has(m.id) ? 'read' : m.status, time: shortTime(m.created_at), createdAt: m.created_at, reactions: reactionOverrides[m.id] || m.reactions || {} }))
+    ? [
+        ...messagesRemote.map((m) => ({ id: m.id, channel: m.channel, senderId: m.sender_id, text: m.text, image: m.image_path ? getPublicUrl('photos', m.image_path) : null, status: readIds.has(m.id) ? 'read' : m.status, time: shortTime(m.created_at), createdAt: m.created_at, reactions: reactionOverrides[m.id] || m.reactions || {} })),
+        ...visiblePending(pendingMessages, messagesRemote),
+      ]
     : messagesLocal;
 
   const [photosLocal, setPhotosLocal] = usePersistentState('photos', INITIAL_PHOTOS);
@@ -203,19 +229,45 @@ export default function App() {
 
   const now = () => new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 
-  // imageFile optional (bereits verkleinert). Mit Bild: Promise wird bei Fehler abgelehnt,
-  // damit der Chat den Fehler anzeigen und das Bild zum erneuten Senden behalten kann.
+  // Ausstehende Nachricht hochladen/speichern. Bei Erfolg die echte Zeile sofort
+  // übernehmen (nicht auf Realtime warten), bei Fehler als "nicht gesendet" markieren.
+  const deliverMessage = async (pending) => {
+    try {
+      const image_path = pending.file
+        ? (await uploadFile('photos', pending.file, `chat/${user.id}`)).path
+        : undefined;
+      const row = await insertRow('messages', { channel: pending.channel, sender_id: user.id, text: pending.text, ...(image_path ? { image_path } : {}) });
+      mergeMessage(row);
+      setPendingMessages((ps) => ps.filter((p) => p.id !== pending.id));
+      // Lokale Vorschau erst später freigeben, bis das echte Bild geladen ist
+      if (pending.image) setTimeout(() => URL.revokeObjectURL(pending.image), 30000);
+      triggerPush('message', row?.id);
+    } catch (e) {
+      console.warn('[message]', e.message);
+      setPendingMessages((ps) => ps.map((p) => (p.id === pending.id ? { ...p, status: 'failed' } : p)));
+    }
+  };
+
+  const retryMessage = (id) => {
+    const pending = pendingMessages.find((p) => p.id === id);
+    if (!pending) return;
+    const again = { ...pending, status: 'sending', createdAt: new Date().toISOString() };
+    setPendingMessages((ps) => ps.map((p) => (p.id === id ? again : p)));
+    deliverMessage(again);
+  };
+
+  // imageFile optional (bereits verkleinert). Die Nachricht erscheint sofort beim
+  // Absender (mit Uhr-Symbol), Upload und Speichern laufen im Hintergrund.
   const sendMessage = async (text, channel, imageFile = null) => {
     if (isSupabaseConfigured) {
-      if (imageFile) {
-        const { path } = await uploadFile('photos', imageFile, `chat/${user.id}`);
-        const row = await insertRow('messages', { channel, sender_id: user.id, text, image_path: path });
-        triggerPush('message', row?.id);
-        return;
-      }
-      insertRow('messages', { channel, sender_id: user.id, text })
-        .then((row) => triggerPush('message', row?.id))
-        .catch((e) => console.warn('[message]', e.message));
+      const pending = {
+        id: `pending-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        channel, senderId: user.id, text, file: imageFile,
+        image: imageFile ? URL.createObjectURL(imageFile) : null,
+        status: 'sending', pending: true, time: now(), createdAt: new Date().toISOString(), reactions: {},
+      };
+      setPendingMessages((ps) => [...ps, pending]);
+      deliverMessage(pending);
       // Realtime-Subscription holt die neue Nachricht bei allen Teilnehmern automatisch nach.
       return;
     }
@@ -573,7 +625,7 @@ export default function App() {
           {tab === "home" && <HomeTab setTab={setTab} broadcasts={broadcasts} messages={messages} travelers={travelers} schedule={schedule} onOpenDoc={openDoc} tiles={homeTiles} ticker={ticker} isAdmin={user.role === "admin"} onUpdateTile={updateTile} onReorderTiles={reorderTiles} onDeleteTile={deleteTile} onAddTile={addTile} onUpdateTicker={updateTicker} user={user} />}
           {tab === "schedule" && <ScheduleTab schedule={schedule} docs={docs} onOpenDoc={openDoc} isAdmin={user.role === "admin"} onAddEvent={addEvent} onUpdateEvent={updateEvent} onDeleteEvent={deleteEvent} />}
           {tab === "documents" && <DocumentsTab user={user} docs={docs} travelers={travelers} focusId={docFocus} onAddDoc={addDoc} />}
-          {tab === "chat" && <ChatTab user={user} focus={chatFocus} travelers={travelers} messages={messages} onSend={sendMessage} typing={typing} onToggleReaction={toggleReaction} onMarkRead={markChannelRead} />}
+          {tab === "chat" && <ChatTab user={user} focus={chatFocus} travelers={travelers} messages={messages} onSend={sendMessage} onRetry={retryMessage} typing={typing} onToggleReaction={toggleReaction} onMarkRead={markChannelRead} />}
           {tab === "photos" && <PhotosTab photos={photos} user={user} onComment={addComment} onShare={sharePhoto} onDelete={deletePhoto} />}
           {tab === "admin" && user.role === "admin" && <AdminTab travelers={travelers} docs={docs} onBroadcast={broadcast} onToggleStatus={toggleTravelerStatus} onAddTraveler={addTraveler} onEditTraveler={editTraveler} onDeleteTraveler={removeTraveler} onAddEvent={addEvent} onResetData={resetPreviewData} />}
         </main>

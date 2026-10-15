@@ -248,7 +248,8 @@ export async function signOut() {
  * automatisch, wenn irgendjemand (Rebekka, andere Reisende) etwas ändert.
  *
  * @param {string} table  Tabellenname in Supabase (z.B. 'schedule')
- * @param {object} [opts] Optional: { orderBy: 'column', ascending: true, filter: (query) => query }
+ * @param {object} [opts] Optional: { orderBy: 'column', ascending: true, filter: (query) => query,
+ *                        liveMerge: true (Realtime-Änderungen direkt übernehmen statt neu zu laden) }
  */
 export function useCollection(table, opts = {}) {
   const [data, setData] = useState([]);
@@ -280,13 +281,28 @@ export function useCollection(table, opts = {}) {
     };
     load();
 
-    // Realtime-Subscription: bei jeder Änderung neu laden.
-    // (Für Chat könnte man optimistischer diff-mergen; für 20-Personen-Reisen ist Reload OK.)
-    // Nach jedem (Wieder-)Verbinden neu laden: Änderungen, die während einer
-    // Unterbrechung passiert sind, liefert Realtime nicht nach.
+    // Realtime-Subscription: bei jeder Änderung neu laden — mit liveMerge
+    // (Chat) wird die geänderte Zeile direkt übernommen, ohne die ganze
+    // Tabelle erneut abzufragen. Nach jedem (Wieder-)Verbinden neu laden:
+    // Änderungen, die während einer Unterbrechung passiert sind, liefert
+    // Realtime nicht nach.
+    const onChange = (payload) => {
+      if (!optsRef.current.liveMerge) { load(); return; }
+      if (payload.eventType === 'DELETE') {
+        if (!payload.old?.id) { load(); return; }
+        setData((rows) => rows.filter((r) => r.id !== payload.old.id));
+        return;
+      }
+      const row = payload.new;
+      if (!row?.id) { load(); return; }
+      setData((rows) => {
+        if (rows.some((r) => r.id === row.id)) return rows.map((r) => (r.id === row.id ? row : r));
+        return optsRef.current.ascending === false ? [row, ...rows] : [...rows, row];
+      });
+    };
     const channel = supabase
       .channel(`realtime:${table}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table }, onChange)
       .subscribe((status) => { if (status === 'SUBSCRIBED') load(); });
 
     // iOS friert die Home-Screen-App im Hintergrund ein und kappt dabei den
@@ -305,9 +321,14 @@ export function useCollection(table, opts = {}) {
     // Nach Login/Logout neu laden: die Tabellen sind per RLS nur für
     // angemeldete Nutzer lesbar. Ohne das bleiben Listen, die schon auf dem
     // Login-Screen (noch ohne Session) geladen wurden, nach dem Login leer.
+    // Ebenso nach dem App-Start und nach einem Token-Refresh: war das Token
+    // beim ersten Laden abgelaufen, liefert RLS stillschweigend eine leere
+    // Liste — selten geänderte Tabellen (travelers → "Unbekannt" im Chat)
+    // blieben sonst leer, bis jemand dort etwas ändert.
     // setTimeout, weil Supabase-Aufrufe direkt im Auth-Callback blockieren.
+    const RELOAD_EVENTS = ['INITIAL_SESSION', 'SIGNED_IN', 'SIGNED_OUT', 'TOKEN_REFRESHED'];
     const { data: { subscription } } = supabase.auth.onAuthStateChange((evt) => {
-      if (evt === 'SIGNED_IN' || evt === 'SIGNED_OUT') setTimeout(load, 0);
+      if (RELOAD_EVENTS.includes(evt)) setTimeout(load, 0);
     });
 
     return () => {
