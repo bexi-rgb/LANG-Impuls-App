@@ -71,7 +71,7 @@ export default function App() {
   useEffect(() => { setReactionOverrides({}); }, [messagesRemote]);
   // Lokal schon als gelesen markierte Nachrichten (Punkt verschwindet sofort)
   const [readIds, setReadIds] = useState(() => new Set());
-  const messages = isSupabaseConfigured
+  const allMessages = isSupabaseConfigured
     ? [
         ...messagesRemote.map((m) => ({ id: m.id, channel: m.channel, senderId: m.sender_id, text: m.text, image: m.image_path ? getPublicUrl('photos', m.image_path) : null, status: readIds.has(m.id) ? 'read' : m.status, time: shortTime(m.created_at), createdAt: m.created_at, reactions: reactionOverrides[m.id] || m.reactions || {} })),
         ...visiblePending(pendingMessages, messagesRemote),
@@ -132,8 +132,12 @@ export default function App() {
     : homeTilesLocal;
 
   const [tickerLocal, setTickerLocal] = usePersistentState('ticker', INITIAL_TICKER);
-  const { data: tickerRows } = useCollection('app_config', { filter: (q) => q.eq('key', 'ticker') });
-  const ticker = isSupabaseConfigured ? (tickerRows[0]?.value ?? INITIAL_TICKER) : tickerLocal;
+  const [chatStartLocal, setChatStartLocal] = usePersistentState('chatStart', '');
+  // Eine Subscription für alle Config-Schlüssel (gleicher Realtime-Kanal)
+  const { data: configRows } = useCollection('app_config', { filter: (q) => q.in('key', ['ticker', 'chat_start']) });
+  const configValue = (key) => configRows.find((r) => r.key === key)?.value;
+  const ticker = isSupabaseConfigured ? (configValue('ticker') ?? INITIAL_TICKER) : tickerLocal;
+  const chatStart = isSupabaseConfigured ? (configValue('chat_start') || '') : chatStartLocal;
 
   // ── Nicht-persistierter Sitzungs-State ──────────────────────────
   // ?tab=chat: Tipp auf eine Push-Benachrichtigung bei geschlossener App
@@ -195,6 +199,13 @@ export default function App() {
   const user = isSupabaseConfigured
     ? (profile ? { ...profile, avatarUrl: profile.avatar_url || '' } : null)
     : demoUser;
+
+  // Gruppenchat-Start: Reisende sehen nur Gruppennachrichten ab diesem Zeitpunkt
+  // (ältere Test-Nachrichten bleiben gespeichert, nur Rebekka sieht sie noch).
+  const chatStartMs = chatStart ? Date.parse(chatStart) : NaN;
+  const messages = user?.role === "admin" || Number.isNaN(chatStartMs)
+    ? allMessages
+    : allMessages.filter((m) => m.channel !== "group" || m.pending || !m.createdAt || Date.parse(m.createdAt) >= chatStartMs);
 
   const remoteNotificationTexts = isSupabaseConfigured
     ? broadcastNotifications
@@ -464,6 +475,17 @@ export default function App() {
     }
     setTickerLocal(text);
   };
+  // iso = Startzeitpunkt des Gruppenchats für Reisende, '' = alle Nachrichten zeigen
+  const updateChatStart = (iso) => {
+    if (isSupabaseConfigured) {
+      setConfig('chat_start', iso).catch((e) => {
+        console.warn('[chat_start]', e.message);
+        setNotifications((n) => [`Chat-Start konnte nicht gespeichert werden: ${e.message}`, ...n]);
+      });
+      return;
+    }
+    setChatStartLocal(iso);
+  };
   const addDoc = async (d) => {
     if (isSupabaseConfigured) {
       let filePath = null;
@@ -625,9 +647,9 @@ export default function App() {
           {tab === "home" && <HomeTab setTab={setTab} broadcasts={broadcasts} messages={messages} travelers={travelers} schedule={schedule} onOpenDoc={openDoc} tiles={homeTiles} ticker={ticker} isAdmin={user.role === "admin"} onUpdateTile={updateTile} onReorderTiles={reorderTiles} onDeleteTile={deleteTile} onAddTile={addTile} onUpdateTicker={updateTicker} user={user} />}
           {tab === "schedule" && <ScheduleTab schedule={schedule} docs={docs} onOpenDoc={openDoc} isAdmin={user.role === "admin"} onAddEvent={addEvent} onUpdateEvent={updateEvent} onDeleteEvent={deleteEvent} />}
           {tab === "documents" && <DocumentsTab user={user} docs={docs} travelers={travelers} focusId={docFocus} onAddDoc={addDoc} />}
-          {tab === "chat" && <ChatTab user={user} focus={chatFocus} travelers={travelers} messages={messages} onSend={sendMessage} onRetry={retryMessage} typing={typing} onToggleReaction={toggleReaction} onMarkRead={markChannelRead} />}
+          {tab === "chat" && <ChatTab user={user} focus={chatFocus} travelers={travelers} messages={messages} onSend={sendMessage} onRetry={retryMessage} typing={typing} onToggleReaction={toggleReaction} onMarkRead={markChannelRead} chatStart={chatStart} />}
           {tab === "photos" && <PhotosTab photos={photos} user={user} onComment={addComment} onShare={sharePhoto} onDelete={deletePhoto} />}
-          {tab === "admin" && user.role === "admin" && <AdminTab travelers={travelers} docs={docs} onBroadcast={broadcast} onToggleStatus={toggleTravelerStatus} onAddTraveler={addTraveler} onEditTraveler={editTraveler} onDeleteTraveler={removeTraveler} onAddEvent={addEvent} onResetData={resetPreviewData} />}
+          {tab === "admin" && user.role === "admin" && <AdminTab travelers={travelers} docs={docs} onBroadcast={broadcast} onToggleStatus={toggleTravelerStatus} onAddTraveler={addTraveler} onEditTraveler={editTraveler} onDeleteTraveler={removeTraveler} onAddEvent={addEvent} chatStart={chatStart} onSetChatStart={updateChatStart} onResetData={resetPreviewData} />}
         </main>
         <BottomNav tab={tab} setTab={setTab} isAdmin={user.role === "admin"} />
       </div>

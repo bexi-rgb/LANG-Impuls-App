@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import {
   ShieldAlert, Users, Megaphone, UserPlus, Calendar, CalendarDays, CheckCircle2, X, Plus, MapPin,
-  Database, Trash2, User, Mail, Lock, Smartphone, Pencil,
+  Database, Trash2, User, Mail, Lock, Smartphone, Pencil, MessageCircle,
 } from 'lucide-react';
 import { C, MONO, TRIP_DAYS, fmtDayShort } from './constants.js';
 import { Label, Avatar } from './shell.jsx';
 import { storageSize, formatBytes } from './storage.js';
 
-export function AdminTab({ travelers, docs = [], onBroadcast, onToggleStatus, onAddTraveler, onEditTraveler, onDeleteTraveler, onAddEvent, onResetData }) {
+export function AdminTab({ travelers, docs = [], onBroadcast, onToggleStatus, onAddTraveler, onEditTraveler, onDeleteTraveler, onAddEvent, chatStart, onSetChatStart, onResetData }) {
   const [msg, setMsg] = useState("");
   const [sent, setSent] = useState(false);
   const [nName, setNName] = useState(""); const [nUser, setNUser] = useState(""); const [nPass, setNPass] = useState("");
@@ -140,6 +140,8 @@ export function AdminTab({ travelers, docs = [], onBroadcast, onToggleStatus, on
         </div>
       </div>
 
+      {onSetChatStart && <ChatStartPanel chatStart={chatStart} onSet={onSetChatStart} />}
+
       <StoragePanel onResetData={onResetData} />
     </div>
   );
@@ -235,6 +237,39 @@ function TravelerRow({ t, onToggleStatus, onEdit, onDelete }) {
               className="py-2.5 rounded-xl text-[13px] font-black uppercase text-white hover:opacity-90 active:scale-[.99] transition disabled:opacity-50">{busy ? "Speichert..." : "Speichern"}</button>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// Gruppenchat für Reisende "frisch" starten: ältere (Test-)Nachrichten bleiben
+// gespeichert, Reisende sehen aber nur, was ab diesem Zeitpunkt geschrieben wird.
+function ChatStartPanel({ chatStart, onSet }) {
+  const startLabel = chatStart
+    ? new Date(chatStart).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
+    : null;
+  const startNow = () => {
+    if (window.confirm("Gruppenchat ab jetzt starten? Reisende sehen dann nur noch Gruppennachrichten, die ab jetzt geschrieben werden. Ältere Nachrichten bleiben gespeichert und für dich sichtbar.")) {
+      onSet(new Date().toISOString());
+    }
+  };
+  return (
+    <div style={{ background: C.surface, borderColor: `${C.charcoal}4d` }} className="border rounded-2xl p-5 space-y-4">
+      <div className="flex items-center gap-2"><MessageCircle className="w-5 h-5" style={{ color: C.gold }} /><Label>Gruppenchat-Start</Label></div>
+      <p style={{ color: C.silver }} className="text-[13px] leading-relaxed">
+        {startLabel
+          ? <>Reisende sehen Gruppennachrichten ab <span className="font-bold text-white">{startLabel} Uhr</span>. Ältere Nachrichten siehst nur du.</>
+          : "Reisende sehen derzeit alle Gruppennachrichten, auch Test-Nachrichten. Vor dem Versand der Einladungen hier den Chat starten."}
+      </p>
+      <button type="button" onClick={startNow} style={{ background: C.gold, letterSpacing: "0.15em" }}
+        className="w-full py-2.5 rounded-xl text-[14px] font-black uppercase text-white hover:opacity-90 active:scale-[.99] transition">
+        {startLabel ? "Erneut ab jetzt starten" : "Chat ab jetzt starten"}
+      </button>
+      {startLabel && (
+        <button type="button" onClick={() => onSet("")} style={{ color: C.silver }}
+          className="w-full text-[13px] font-bold hover:text-white transition">
+          Zurücksetzen — alle Nachrichten zeigen
+        </button>
       )}
     </div>
   );

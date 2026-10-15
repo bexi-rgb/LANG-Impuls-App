@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import {
   Send, ImagePlus, Check, CheckCheck, Clock, AlertCircle, User, Users, ChevronLeft, ChevronDown, Search, Smile, Plus, X,
 } from 'lucide-react';
@@ -6,8 +6,11 @@ import { C, MONO } from './constants.js';
 import { Label, Avatar, EmojiPicker, AppOverlay } from './shell.jsx';
 import { QUICK_REACTIONS } from './emoji.js';
 import { downscaleImage } from './lib/image.js';
+import { loadValue, saveValue } from './storage.js';
 
-export function ChatTab({ user, focus, travelers, messages, onSend, onRetry, typing, onToggleReaction, onMarkRead }) {
+const COMPOSER_MAX_H = 168; // px ≈ 6 Zeilen
+
+export function ChatTab({ user, focus, travelers, messages, onSend, onRetry, typing, onToggleReaction, onMarkRead, chatStart }) {
   const isAdmin = user.role === "admin";
   const isSenderAdmin = (id) => id === "admin" || travelers.find((t) => t.id === id)?.role === "admin";
   // Aus Push-Benachrichtigung: 'direct:<travelerId>' öffnet die Direkt-Unterhaltung
@@ -43,31 +46,138 @@ export function ChatTab({ user, focus, travelers, messages, onSend, onRetry, typ
 
   const showList = isAdmin && mode === "direct" && !partnerId;
   const channelMessages = channel ? messages.filter((m) => m.channel === channel) : [];
+  // Nur für Rebekka: Trennlinie, ab der Reisende den Gruppenchat sehen
+  // (davor liegende Test-Nachrichten sind für sie ausgeblendet).
+  const chatStartMs = chatStart ? Date.parse(chatStart) : NaN;
+  let startDividerAt = -1;
+  if (isAdmin && channel === "group" && !Number.isNaN(chatStartMs) && channelMessages.length > 0) {
+    const idx = channelMessages.findIndex((m) => m.pending || !m.createdAt || Date.parse(m.createdAt) >= chatStartMs);
+    startDividerAt = idx === -1 ? channelMessages.length : idx;
+    if (startDividerAt === 0) startDividerAt = -1; // nichts ausgeblendet → keine Linie
+  }
 
+  // ── Ungelesen-Trenner ────────────────────────────────────────────
+  // Beim Öffnen einer Unterhaltung einmal festhalten, ab welcher Nachricht
+  // ungelesen ist — sonst verschwindet die Linie sofort wieder, sobald die
+  // Nachrichten als gelesen markiert werden. Direkt: Status der Nachricht;
+  // Gruppe: zuletzt gesehener Zeitpunkt auf diesem Gerät.
+  const seenKey = channel ? `chatSeen:${user.id}:${channel}` : null;
+  const unreadMark = useRef({ channel: null, id: null });
+  const initialScrollDone = useRef(null);
+  const prevLastId = useRef(null);
+  // Jedes (Wieder-)Öffnen einer Unterhaltung beginnt frisch — auch derselben
+  // (z.B. Admin: Gruppe → Chatliste → Gruppe).
+  const openedView = useRef(null);
+  const viewKey = showList ? "list" : channel;
+  if (openedView.current !== viewKey) {
+    openedView.current = viewKey;
+    unreadMark.current = { channel: null, id: null };
+    initialScrollDone.current = null;
+    prevLastId.current = null;
+  }
+  if (channel && unreadMark.current.channel !== channel && channelMessages.some((m) => !m.pending)) {
+    const seenAt = channel === "group" ? Date.parse(loadValue(seenKey, "") || "") : NaN;
+    const first = channelMessages.find((m) => m.senderId !== user.id && !m.pending && (channel === "group"
+      ? Number.isNaN(seenAt) || Date.parse(m.createdAt) > seenAt
+      : m.status !== "read"));
+    unreadMark.current = { channel, id: first?.id || null };
+  }
+  const unreadMarkId = unreadMark.current.channel === channel ? unreadMark.current.id : null;
+  const unreadFromIdx = unreadMarkId ? channelMessages.findIndex((m) => m.id === unreadMarkId) : -1;
+  const unreadCount = unreadFromIdx < 0 ? 0 : channelMessages.slice(unreadFromIdx).filter((m) => m.senderId !== user.id).length;
+
+  // ── Scroll-Verhalten ─────────────────────────────────────────────
+  // anchor: "divider" = beim Öffnen auf "Ungelesene Nachrichten" ausgerichtet,
+  // "bottom" = folgt neuen Nachrichten, "free" = Nutzer liest weiter oben.
+  // Nachladende Bilder verschieben den Inhalt — iOS hält die Position dabei
+  // nicht selbst fest, daher wird nach jedem Bild neu ausgerichtet.
+  const unreadDividerRef = useRef(null);
+  const anchor = useRef("bottom");
+  const userScrolled = useRef(false);
+  const [atBottom, setAtBottom] = useState(true);
+  const atBottomRef = useRef(true); // sofort aktuell (State erst nach dem nächsten Render)
+  const [newBelow, setNewBelow] = useState(0); // neue Nachrichten, während man weiter oben liest
+
+  const scrollToBottom = (smooth = false) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    anchor.current = "bottom";
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+  };
+  const reanchor = () => {
+    if (anchor.current === "bottom") scrollToBottom();
+    else if (anchor.current === "divider") unreadDividerRef.current?.scrollIntoView({ block: "start" });
+  };
+  const updateAtBottom = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    atBottomRef.current = near;
+    setAtBottom(near);
+    if (near) { anchor.current = "bottom"; setNewBelow(0); }
+    else if (userScrolled.current) anchor.current = "free";
+  };
+  const onListScroll = () => updateAtBottom();
+  const onListWheel = () => { userScrolled.current = true; };
+
+  // Beim Öffnen: zur ersten ungelesenen Nachricht, sonst ganz nach unten
+  useLayoutEffect(() => {
+    if (showList || !channel || initialScrollDone.current === channel) return;
+    if (channelMessages.length === 0) return; // warten, bis Nachrichten da sind
+    initialScrollDone.current = channel;
+    userScrolled.current = false;
+    setNewBelow(0);
+    if (unreadDividerRef.current) {
+      anchor.current = "divider";
+      unreadDividerRef.current.scrollIntoView({ block: "start" });
+    } else {
+      scrollToBottom();
+    }
+    updateAtBottom();
+  }); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Neue Nachricht: eigene → immer nach unten; fremde → nur mitscrollen,
+  // wenn man ohnehin unten ist, sonst Hinweis-Button "Neue Nachrichten".
+  const lastMsg = channelMessages[channelMessages.length - 1];
   useEffect(() => {
-    if (!showList) endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [channelMessages.length, typing, channel, showList]);
+    const prev = prevLastId.current;
+    prevLastId.current = lastMsg?.id || null;
+    if (showList || !lastMsg || initialScrollDone.current !== channel || !prev || prev === lastMsg.id) return;
+    if (lastMsg.senderId === user.id || anchor.current === "bottom") { scrollToBottom(true); return; }
+    setNewBelow((n) => n + 1);
+  }, [lastMsg?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (typing && anchor.current === "bottom") scrollToBottom(true);
+  }, [typing]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Gruppe: zuletzt gesehenen Zeitpunkt merken, sobald man unten angekommen ist
+  const lastSeenCandidate = [...channelMessages].reverse().find((m) => !m.pending && m.createdAt)?.createdAt;
+  useEffect(() => {
+    if (showList || channel !== "group" || !atBottomRef.current || !lastSeenCandidate) return;
+    if (document.visibilityState === "visible") saveValue(seenKey, lastSeenCandidate);
+  }, [channel, showList, atBottom, lastSeenCandidate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Offene Direkt-Unterhaltung als gelesen markieren — auch bei neu
-  // eintreffenden Nachrichten, aber nur solange die App wirklich sichtbar ist.
+  // eintreffenden Nachrichten, aber nur solange die App wirklich sichtbar ist
+  // und man bis zu den neuen Nachrichten gescrollt hat.
   const unreadInChannel = channelMessages.filter((m) => m.senderId !== user.id && m.status !== "read").length;
   useEffect(() => {
-    if (showList || !channel?.startsWith("direct:") || !unreadInChannel || !onMarkRead) return;
+    if (showList || !channel?.startsWith("direct:") || !unreadInChannel || !onMarkRead || !atBottomRef.current) return;
     const mark = () => { if (document.visibilityState === "visible") onMarkRead(channel); };
     mark();
     document.addEventListener("visibilitychange", mark);
     return () => document.removeEventListener("visibilitychange", mark);
-  }, [channel, showList, unreadInChannel]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [channel, showList, unreadInChannel, atBottom]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Tastatur öffnet/schließt → Nachrichtenbereich wird kleiner/größer: unten bleiben,
   // damit die letzte Nachricht direkt über der Eingabezeile sichtbar ist.
   useEffect(() => {
     const v = window.visualViewport;
     if (!v || showList) return;
-    const stick = () => { const el = scrollRef.current; if (el) el.scrollTop = el.scrollHeight; };
+    const stick = () => scrollToBottom();
     v.addEventListener("resize", stick);
     return () => v.removeEventListener("resize", stick);
-  }, [showList, channel]);
+  }, [showList, channel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Nachricht erscheint sofort im Verlauf (Uhr-Symbol), gesendet wird im Hintergrund.
   // Schlägt das fehl, zeigt die Blase "Nicht gesendet" und kann erneut gesendet werden.
@@ -76,6 +186,27 @@ export function ChatTab({ user, focus, travelers, messages, onSend, onRetry, typ
     onSend(text.trim(), channel, attachment?.file || null);
     setText("");
     clearAttachment();
+  };
+
+  // Eingabefeld wächst mit dem Text mit (bis ca. 6 Zeilen, danach scrollt es),
+  // damit man längere Nachrichten vor dem Senden lesen und korrigieren kann.
+  useLayoutEffect(() => {
+    const el = textRef.current;
+    if (!el) return;
+    const before = el.style.height;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight + 2, COMPOSER_MAX_H)}px`;
+    // Nachrichtenbereich wird kleiner/größer → letzte Nachricht sichtbar halten
+    if (el.style.height !== before && anchor.current === "bottom") scrollToBottom();
+  }, [text, showList, channel]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Enter sendet nur mit echter Tastatur (Shift+Enter = neue Zeile). Am Handy
+  // fügt die Zeilenumbruch-Taste eine neue Zeile ein, gesendet wird per Button.
+  const onComposerKeyDown = (e) => {
+    if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+    if (!window.matchMedia?.("(pointer: fine)").matches) return;
+    e.preventDefault();
+    send();
   };
 
   const onPickImage = async (e) => {
@@ -95,7 +226,7 @@ export function ChatTab({ user, focus, travelers, messages, onSend, onRetry, typ
 
   // Wie iMessage: nach unten wischen im Nachrichtenbereich schließt die Tastatur.
   const swipeStartY = useRef(null);
-  const onListTouchStart = (e) => { swipeStartY.current = e.touches[0].clientY; };
+  const onListTouchStart = (e) => { swipeStartY.current = e.touches[0].clientY; userScrolled.current = true; };
   const onListTouchMove = (e) => {
     if (swipeStartY.current == null || document.activeElement !== textRef.current) return;
     if (e.touches[0].clientY - swipeStartY.current > 40) {
@@ -275,7 +406,8 @@ export function ChatTab({ user, focus, travelers, messages, onSend, onRetry, typ
             </div>
           </div>
 
-          <div ref={scrollRef} onTouchStart={onListTouchStart} onTouchMove={onListTouchMove}
+          <div className="relative flex-1 min-h-0 flex flex-col">
+          <div ref={scrollRef} onTouchStart={onListTouchStart} onTouchMove={onListTouchMove} onScroll={onListScroll} onWheel={onListWheel}
             className="flex-1 overflow-y-auto px-1 py-4 space-y-4">
             <div className="flex justify-center">
               <span style={{ background: `${C.charcoal}66`, color: C.silver, letterSpacing: "0.2em" }} className="px-4 py-1.5 rounded-full text-[13px] font-semibold uppercase">Heute</span>
@@ -299,7 +431,18 @@ export function ChatTab({ user, focus, travelers, messages, onSend, onRetry, typ
               const senderObj = partnerObj(m.senderId);
               const reactions = Object.entries(m.reactions || {}).filter(([, uids]) => uids.length > 0);
               return (
-                <div key={m.id} className={`flex ${me ? "justify-end" : "justify-start"} gap-2`}>
+                <React.Fragment key={m.id}>
+                {i === startDividerAt && <ChatStartDivider />}
+                {i === unreadFromIdx && unreadCount > 0 && (
+                  <div ref={unreadDividerRef} className="flex items-center gap-3 py-1 scroll-mt-3" role="separator">
+                    <span style={{ background: `${C.teal}80` }} className="flex-1 h-px" />
+                    <span style={{ background: `${C.teal}26`, color: C.teal, fontFamily: MONO, letterSpacing: "0.12em" }} className="px-3 py-1 rounded-full text-[11px] font-black uppercase">
+                      {unreadCount === 1 ? "1 ungelesene Nachricht" : `${unreadCount} ungelesene Nachrichten`}
+                    </span>
+                    <span style={{ background: `${C.teal}80` }} className="flex-1 h-px" />
+                  </div>
+                )}
+                <div className={`flex ${me ? "justify-end" : "justify-start"} gap-2`}>
                   {!me && mode === "group" && (
                     <div className={`shrink-0 self-end ${showSender ? "opacity-100" : "opacity-0"}`}>
                       {isSenderAdmin(m.senderId) ? (
@@ -327,10 +470,10 @@ export function ChatTab({ user, focus, travelers, messages, onSend, onRetry, typ
                         {m.image && (
                           <img src={m.image} alt="Foto" draggable={false}
                             onClick={() => { if (reactMsgId !== m.id) setLightbox(m.image); }}
-                            onLoad={() => { if (i === channelMessages.length - 1) endRef.current?.scrollIntoView(); }}
+                            onLoad={reanchor}
                             className="block w-60 max-w-full max-h-80 object-cover rounded-xl cursor-zoom-in" />
                         )}
-                        {m.text && <div className={m.image ? "px-3 pt-1.5 pb-1" : ""}>{m.text}</div>}
+                        {m.text && <div className={`whitespace-pre-wrap break-words ${m.image ? "px-3 pt-1.5 pb-1" : ""}`}>{m.text}</div>}
                       </div>
                       <button type="button" onClick={() => { if (!m.pending) openReactPicker(m.id); }}
                         style={{ background: C.surfaceHigh, borderColor: `${C.charcoal}66`, color: C.silver }}
@@ -383,8 +526,10 @@ export function ChatTab({ user, focus, travelers, messages, onSend, onRetry, typ
                     )}
                   </div>
                 </div>
+                </React.Fragment>
               );
             })}
+            {startDividerAt === channelMessages.length && <ChatStartDivider />}
 
             {typing && mode === "direct" && !isAdmin && (
               <div style={{ background: C.surfaceHigh, borderColor: `${C.charcoal}4d` }} className="border rounded-2xl rounded-bl-sm px-4 py-3 w-fit flex gap-1.5">
@@ -392,6 +537,16 @@ export function ChatTab({ user, focus, travelers, messages, onSend, onRetry, typ
               </div>
             )}
             <div ref={endRef} />
+          </div>
+          {!atBottom && (
+            <button type="button" onClick={() => scrollToBottom(true)}
+              style={{ background: C.surfaceHigh, borderColor: newBelow > 0 ? C.gold : `${C.charcoal}80`, color: newBelow > 0 ? C.gold : C.silver }}
+              className="absolute bottom-3 right-2 z-10 h-10 min-w-10 px-2.5 rounded-full border shadow-xl flex items-center justify-center gap-1 active:scale-95 transition fadeup"
+              aria-label="Zur neuesten Nachricht">
+              {newBelow > 0 && <span style={{ fontFamily: MONO }} className="text-[12px] font-black">{newBelow}</span>}
+              <ChevronDown className="w-5 h-5" />
+            </button>
+          )}
           </div>
 
           {attachment && (
@@ -408,16 +563,16 @@ export function ChatTab({ user, focus, travelers, messages, onSend, onRetry, typ
               </p>
             </div>
           )}
-          <div className={`flex items-center gap-2 pt-3 ${attachment ? "" : "border-t"}`} style={{ borderColor: `${C.charcoal}33` }}>
+          <div className={`flex items-end gap-2 pt-3 ${attachment ? "" : "border-t"}`} style={{ borderColor: `${C.charcoal}33` }}>
             <button type="button" onClick={() => setEmojiTarget("composer")}
               style={{ color: C.silver }} className="p-2.5 hover:text-white transition" aria-label="Emoji"><Smile className="w-6 h-6" /></button>
             <input ref={imageInputRef} type="file" accept="image/*" onChange={onPickImage} className="hidden" />
             <button type="button" onClick={() => imageInputRef.current?.click()}
               style={{ color: C.silver }} className="p-2.5 hover:text-white transition" aria-label="Bild anhängen"><ImagePlus className="w-6 h-6" /></button>
-            <input ref={textRef} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()}
+            <textarea ref={textRef} value={text} rows={1} onChange={(e) => setText(e.target.value)} onKeyDown={onComposerKeyDown}
               placeholder={mode === "group" ? "Nachricht an die Gruppe …" : (isAdmin ? `Nachricht an ${partner?.name?.split(" ")[0] || "…"} …` : "Nachricht an Rebekka …")}
-              style={{ background: `${C.charcoal}33`, borderColor: `${C.charcoal}66` }}
-              className="flex-1 min-w-0 border rounded-xl px-4 py-3 text-base text-white placeholder:opacity-70 focus:outline-none" />
+              style={{ background: `${C.charcoal}33`, borderColor: `${C.charcoal}66`, maxHeight: COMPOSER_MAX_H }}
+              className="flex-1 min-w-0 border rounded-xl px-4 py-3 text-base leading-6 text-white placeholder:opacity-70 focus:outline-none resize-none overflow-y-auto block" />
             {/* preventDefault: Tippen auf Senden nimmt dem Eingabefeld nicht den Fokus → Tastatur bleibt offen */}
             <button type="button" onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={send} disabled={!text.trim() && !attachment}
               style={{ background: C.gold }} className="p-3 rounded-xl text-white hover:opacity-90 active:scale-95 transition disabled:opacity-40" aria-label="Senden">
@@ -453,3 +608,15 @@ export function ToggleSeg({ active, onClick, icon: Icon, children }) {
 }
 
 
+
+function ChatStartDivider() {
+  return (
+    <div className="flex items-center gap-3 py-1" role="separator">
+      <span style={{ background: `${C.gold}66` }} className="flex-1 h-px" />
+      <span style={{ color: C.gold, fontFamily: MONO, letterSpacing: "0.12em" }} className="text-[11px] font-black uppercase text-center">
+        Ab hier sichtbar für Reisende
+      </span>
+      <span style={{ background: `${C.gold}66` }} className="flex-1 h-px" />
+    </div>
+  );
+}
