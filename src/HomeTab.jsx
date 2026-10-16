@@ -7,9 +7,9 @@ import {
   Wine, Music, Car, Bell, Star, CalendarDays, QrCode,
   Sun, Cloud, CloudSun, CloudRain, CloudSnow, CloudFog, CloudLightning, CloudDrizzle,
   Droplets, Wind, RefreshCw, AlertCircle, Coins, ArrowLeftRight, Delete, Check,
-  Users, EyeOff,
+  Users,
 } from 'lucide-react';
-import { C, MONO, TYPE_META, evDate, fmtDayShort, fmtDayLong, countdownLabel, mapsUrl, TEAM_MEMBERS, isTileHidden } from './constants.js';
+import { C, MONO, TYPE_META, evDate, fmtDayShort, fmtDayLong, countdownLabel, mapsUrl, TEAM_MEMBERS, TEAM_CONTACTS, isTeamContactMode } from './constants.js';
 import { PushPrompt } from './PushPrompt.jsx';
 import { Label, EditPencil, HomeSectionEditModal } from './shell.jsx';
 import { useWeather, WEATHER_LOCATIONS, describeWeather, formatFetchedAt } from './api/weather.js';
@@ -411,6 +411,7 @@ export function InfoTileCard({ data }) {
 }
 
 export function TeamCard({ data, onOpen }) {
+  if (isTeamContactMode(data)) return <TeamContactCard data={data} />;
   return (
     <div style={{ background: `linear-gradient(135deg, ${C.surfaceHigh}, ${C.surface})`, borderColor: `${C.gold}59` }}
       className="border-2 rounded-2xl p-5 space-y-4 relative overflow-hidden">
@@ -421,7 +422,6 @@ export function TeamCard({ data, onOpen }) {
           <Label>{data.label || "Meet the Team"}</Label>
         </div>
         {data.headline && <p className="text-xl font-extrabold">{data.headline}</p>}
-        {data.intro && <p style={{ color: C.silver }} className="text-sm leading-relaxed">{data.intro}</p>}
       </div>
       <div className="grid grid-cols-5 gap-2 relative">
         {TEAM_MEMBERS.map((m) => (
@@ -437,6 +437,47 @@ export function TeamCard({ data, onOpen }) {
         className="relative w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[14px] font-black uppercase text-white hover:opacity-90 active:scale-[.98] transition">
         Team kennenlernen <ChevronRight className="w-4 h-4" />
       </button>
+    </div>
+  );
+}
+
+// Ab Reisetag 2: Portrait + Telefonnummer, Antippen startet den Anruf
+function TeamContactCard({ data }) {
+  return (
+    <div style={{ background: `linear-gradient(135deg, ${C.surfaceHigh}, ${C.surface})`, borderColor: `${C.gold}59` }}
+      className="border-2 rounded-2xl p-5 space-y-4 relative overflow-hidden">
+      <div style={{ background: `${C.gold}14` }} className="absolute -top-10 -right-10 w-40 h-40 rounded-full blur-2xl pointer-events-none" />
+      <div className="relative space-y-1.5">
+        <div className="flex items-center gap-2">
+          <Phone className="w-4 h-4" style={{ color: C.gold }} />
+          <Label>{data.label || "Meet the Team"}</Label>
+        </div>
+        <p className="text-xl font-extrabold">{data.contactHeadline || "Kontaktdaten"}</p>
+      </div>
+      <div className="relative space-y-2">
+        {TEAM_CONTACTS.map((m) => (
+          <a key={m.id} href={`tel:${m.phone.replace(/\s/g, "")}`}
+            style={{ background: `${C.charcoal}40`, borderColor: `${C.charcoal}66` }}
+            className="flex items-center gap-3 border rounded-xl p-2 pr-3 active:scale-[.98] transition">
+            {m.face ? (
+              <img src={m.face} alt={m.name} loading="lazy" style={{ borderColor: C.gold }}
+                className="w-12 h-12 shrink-0 rounded-full object-cover border-2" />
+            ) : (
+              <div style={{ borderColor: C.gold, background: C.charcoal }}
+                className="w-12 h-12 shrink-0 rounded-full border-2 flex items-center justify-center text-sm font-black">
+                {m.name.split(" ").map((p) => p[0]).join("")}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold truncate">{m.name}</p>
+              <p style={{ color: C.silver, fontFamily: MONO }} className="text-[13px] truncate">{m.phone}</p>
+            </div>
+            <span style={{ background: C.gold }} className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-white">
+              <Phone className="w-4 h-4" />
+            </span>
+          </a>
+        ))}
+      </div>
     </div>
   );
 }
@@ -833,13 +874,13 @@ export const INFO_FIELDS = [
 export const TEAM_FIELDS = [
   { key: "label", label: "Label (Overline)", placeholder: "z.B. Meet the Team" },
   { key: "headline", label: "Überschrift", placeholder: "z.B. Be part of the circle." },
-  { key: "intro", label: "Einleitung", multiline: true, placeholder: "Kurzer Begrüßungstext …" },
-  { key: "visibility", label: "Sichtbarkeit für Reisende", type: "select", options: [
-    { value: "auto", label: "Automatisch (ab Ausblende-Datum versteckt)" },
-    { value: "show", label: "Immer sichtbar" },
-    { value: "hide", label: "Ausgeblendet" },
+  { key: "contactHeadline", label: "Überschrift (Kontakt-Modus)", placeholder: "z.B. Kontaktdaten" },
+  { key: "visibility", label: "Anzeige", type: "select", options: [
+    { value: "auto", label: "Automatisch (ab Datum Telefonnummern statt Steckbriefe)" },
+    { value: "show", label: "Immer Steckbriefe" },
+    { value: "hide", label: "Immer Telefonnummern" },
   ] },
-  { key: "hideFrom", label: "Ausblenden ab (JJJJ-MM-TT)", placeholder: "2026-11-06", hint: "Gilt nur bei „Automatisch“. Admins sehen die Kachel weiterhin (gedimmt)." },
+  { key: "hideFrom", label: "Telefonnummern ab (JJJJ-MM-TT)", placeholder: "2026-11-06", hint: "Gilt nur bei „Automatisch“." },
 ];
 
 export const WEATHER_FIELDS = [
@@ -965,8 +1006,6 @@ export function HomeTab({ setTab, broadcasts, messages, travelers = [], schedule
       {/* Kachel-Liste */}
       <div className="grid grid-cols-1 gap-4">
         {tiles.map((tile) => {
-          const hidden = isTileHidden(tile);
-          if (hidden && !isAdmin) return null;
           const isDragged = draggedId === tile.id;
           const isDropTarget = dragOverId === tile.id && draggedId !== tile.id;
           const personal = personalFor(tile.id);
@@ -1013,14 +1052,7 @@ export function HomeTab({ setTab, broadcasts, messages, travelers = [], schedule
               {tile.type === "weather" && <WeatherCard data={tile.data} />}
               {tile.type === "currency" && <CurrencyCard data={tile.data} />}
               {tile.type === "team" && (
-                <div style={{ opacity: hidden ? 0.5 : 1 }}>
-                  {hidden && (
-                    <div style={{ color: C.silver, letterSpacing: "0.14em" }} className="flex items-center gap-1.5 text-[10px] font-black uppercase mb-1.5">
-                      <EyeOff className="w-3.5 h-3.5" /> Für Reisende ausgeblendet
-                    </div>
-                  )}
-                  <TeamCard data={tile.data} onOpen={editMode ? null : (focusId) => setTeamDetail({ tileId: tile.id, focusId })} />
-                </div>
+                <TeamCard data={tile.data} onOpen={editMode ? null : (focusId) => setTeamDetail({ tileId: tile.id, focusId })} />
               )}
             </div>
           );
@@ -1136,7 +1168,7 @@ export function HomeTab({ setTab, broadcasts, messages, travelers = [], schedule
                 onClick={() => { onAddTile("currency"); setAddOpen(false); }} />
               <AddTileOption icon={CalendarDays} label="Info-Text" hint="Freie Kachel mit Überschrift und Inhalt"
                 onClick={() => { onAddTile("info"); setAddOpen(false); }} />
-              <AddTileOption icon={Users} label="Meet the Team" hint="Team-Vorstellung, blendet sich ab Tag 2 automatisch aus"
+              <AddTileOption icon={Users} label="Meet the Team" hint="Team-Vorstellung, ab Tag 2 automatisch mit Telefonnummern"
                 onClick={() => { onAddTile("team"); setAddOpen(false); }} />
             </div>
           </div>

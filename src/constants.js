@@ -57,6 +57,7 @@ export const TEAM_MEMBERS = [
   {
     id: "nishaanth", name: "Nishaanth Balachandran", role: "Director Sales Integration",
     photo: "/team/nishaanth.jpg", face: "/team/nishaanth-face.jpg",
+    phone: "+49 1525 6476405",
     facts: [
       ["Run time", "Seit 2019 bei der LANG AG"],
       ["Resolution (Core Focus)", "4K gestochen scharf"],
@@ -68,6 +69,7 @@ export const TEAM_MEMBERS = [
   {
     id: "mark", name: "Mark Moosmayer", role: "Director Sales",
     photo: "/team/mark.jpg", face: "/team/mark-face.jpg",
+    phone: "+49 170 3720573",
     facts: [
       ["Run time", "Seit 2019 bei der LANG AG"],
       ["Refresh Rate", "Ideen entstehen selten im Stillstand"],
@@ -79,6 +81,7 @@ export const TEAM_MEMBERS = [
   {
     id: "kamilla", name: "Kamilla Lang", role: "People Business",
     photo: "/team/kamilla.jpg", face: "/team/kamilla-face.jpg",
+    phone: "+49 1525 6476432",
     facts: [
       ["Run time", "Seit 2018 bei der LANG AG"],
       ["Scan Rate", "Erkennt Talente schneller als andere freie Parkplätze."],
@@ -90,6 +93,7 @@ export const TEAM_MEMBERS = [
   {
     id: "svenja", name: "Svenja Mevissen", role: "Director LED & Displays",
     photo: "/team/svenja.jpg", face: "/team/svenja-face.jpg",
+    phone: "+49 1525 6476459",
     facts: [
       ["Run time", "Seit 2017 bei LANG"],
       ["Technology", "COB – Coffee-On-Board"],
@@ -101,6 +105,7 @@ export const TEAM_MEMBERS = [
   {
     id: "rebekka", name: "Rebekka Gingell", role: "Manager Event Technology",
     photo: "/team/rebekka.jpg", face: "/team/rebekka-face.jpg",
+    phone: "+49 1525 6476416",
     facts: [
       ["Run time", "Seit 2025 bei der LANG AG"],
       ["Technology", "MiP Media History-in-Pocket"],
@@ -111,12 +116,20 @@ export const TEAM_MEMBERS = [
   },
 ];
 
+/* Kontakt-Modus der Team-Kachel: alle Team-Mitglieder + weitere Ansprechpartner ohne Steckbrief */
+export const TEAM_CONTACTS = [
+  ...TEAM_MEMBERS,
+  { id: "marcel", name: "Marcel Schmidt", phone: "+41 78 644 57 81" },
+];
+
 const TEAM_TILE_DEFAULT = () => ({
   label: "Meet the Team",
   headline: "Be part of the circle.",
-  intro: "Das sind wir – euer IMPULS-Team für Taiwan. Tippt auf ein Gesicht und lernt uns kennen!",
-  hideFrom: "2026-11-06", // Reisetag 2 – danach automatisch für Reisende ausgeblendet
-  visibility: "auto",     // auto | show | hide
+  contactHeadline: "Kontaktdaten",
+  // Schlüssel aus Kompatibilität mit gespeicherten Kacheln beibehalten:
+  // hideFrom = ab diesem Tag Kontakt-Modus; visibility: auto | show (immer Steckbriefe) | hide (immer Kontakte)
+  hideFrom: "2026-11-06", // Reisetag 2
+  visibility: "auto",
 });
 
 export const INITIAL_HOME_TILES = [
@@ -300,16 +313,15 @@ export const TILE_TEMPLATES = {
   },
 };
 
-/** Team-Kachel für Reisende ausgeblendet? (manuell oder ab `hideFrom`, lokales Datum) */
-export function isTileHidden(tile) {
-  if (tile.type !== "team") return false;
-  const v = tile.data.visibility || "auto";
+/** Team-Kachel im Kontakt-Modus (Telefonnummern statt Steckbriefe)? Manuell oder ab `hideFrom`, lokales Datum */
+export function isTeamContactMode(data) {
+  const v = data.visibility || "auto";
   if (v === "show") return false;
   if (v === "hide") return true;
-  if (!tile.data.hideFrom) return false;
+  if (!data.hideFrom) return false;
   const d = new Date();
   const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  return today >= tile.data.hideFrom;
+  return today >= data.hideFrom;
 }
 
 /* Helper: countdown label + ICS export */
