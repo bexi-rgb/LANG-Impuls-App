@@ -540,8 +540,6 @@ export function TeamDetailView({ data, focusId, onClose }) {
         </div>
 
         <div className="p-5 space-y-5">
-          <img src="/team/group.jpg" alt="Das IMPULS-Team" style={{ borderColor: C.gold }} className="w-full rounded-2xl border-4" />
-
           {TEAM_MEMBERS.map((m) => (
             <section key={m.id} ref={(el) => { refs.current[m.id] = el; }} style={{ borderColor: `${C.charcoal}66`, scrollMarginTop: "6rem" }}
               className="border rounded-2xl overflow-hidden">
