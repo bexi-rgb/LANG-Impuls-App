@@ -445,13 +445,10 @@ export function TeamCard({ data, onOpen, isAdmin }) {
           {toggle}
         </div>
       ) : (
-        <div className="relative space-y-1.5">
-          <div className="flex items-center gap-2">
-            <Users className="w-4 h-4" style={{ color: C.gold }} />
-            <Label>{data.label || "Meet the Team"}</Label>
-            {toggle}
-          </div>
-          {data.headline && <p className="text-xl font-extrabold">{data.headline}</p>}
+        <div className="relative flex items-center gap-2">
+          <Users className="w-4 h-4" style={{ color: C.gold }} />
+          <Label>{data.label || "Meet the Team"}</Label>
+          {toggle}
         </div>
       )}
 
@@ -532,7 +529,7 @@ export function TeamDetailView({ data, focusId, onClose }) {
         <div style={{ background: C.surfaceHigh, borderColor: `${C.charcoal}66` }} className="sticky top-0 z-10 border-b px-5 py-4 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <Label>{data.label || "Meet the Team"}</Label>
-            <h2 className="text-2xl font-black tracking-tight mt-1 truncate">{data.headline || "Euer Team"}</h2>
+            <h2 className="text-2xl font-black tracking-tight mt-1 truncate">Euer Team</h2>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg active:scale-95 shrink-0" style={{ background: `${C.charcoal}55` }}>
             <X className="w-5 h-5" />
@@ -907,7 +904,6 @@ export const INFO_FIELDS = [
 
 export const TEAM_FIELDS = [
   { key: "label", label: "Label (Overline)", placeholder: "z.B. Meet the Team" },
-  { key: "headline", label: "Überschrift", placeholder: "z.B. Be part of the circle." },
   { key: "contactHeadline", label: "Überschrift (Kontakt-Modus)", placeholder: "z.B. Kontaktdaten" },
   { key: "visibility", label: "Anzeige", type: "select", options: [
     { value: "auto", label: "Automatisch (ab Datum Telefonnummern statt Steckbriefe)" },

@@ -142,7 +142,6 @@ export const TEAM_CONTACTS = [...TEAM_MEMBERS];
 
 const TEAM_TILE_DEFAULT = () => ({
   label: "Meet the Team",
-  headline: "Be part of the circle.",
   contactHeadline: "Kontaktdaten",
   // Schlüssel aus Kompatibilität mit gespeicherten Kacheln beibehalten:
   // hideFrom = ab diesem Tag Kontakt-Modus; visibility: auto | show (immer Steckbriefe) | hide (immer Kontakte)
