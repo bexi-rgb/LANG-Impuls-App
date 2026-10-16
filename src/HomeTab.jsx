@@ -410,74 +410,83 @@ export function InfoTileCard({ data }) {
   );
 }
 
-export function TeamCard({ data, onOpen }) {
-  if (isTeamContactMode(data)) return <TeamContactCard data={data} />;
-  return (
-    <div style={{ background: `linear-gradient(135deg, ${C.surfaceHigh}, ${C.surface})`, borderColor: `${C.gold}59` }}
-      className="border-2 rounded-2xl p-5 space-y-4 relative overflow-hidden">
-      <div style={{ background: `${C.gold}14` }} className="absolute -top-10 -right-10 w-40 h-40 rounded-full blur-2xl pointer-events-none" />
-      <div className="relative space-y-1.5">
-        <div className="flex items-center gap-2">
-          <Users className="w-4 h-4" style={{ color: C.gold }} />
-          <Label>{data.label || "Meet the Team"}</Label>
-        </div>
-        {data.headline && <p className="text-xl font-extrabold">{data.headline}</p>}
-      </div>
-      <div className="grid grid-cols-5 gap-2 relative">
-        {TEAM_MEMBERS.map((m) => (
-          <button key={m.id} onClick={() => onOpen?.(m.id)} disabled={!onOpen}
-            className="flex flex-col items-center gap-1.5 min-w-0 active:scale-95 transition">
-            <img src={m.face} alt={m.name} loading="lazy" style={{ borderColor: C.gold }}
-              className="w-full aspect-square rounded-full object-cover border-2" />
-            <span className="text-[11px] font-bold truncate max-w-full">{m.name.split(" ")[0]}</span>
-          </button>
-        ))}
-      </div>
-      <button onClick={() => onOpen?.(null)} disabled={!onOpen} style={{ background: C.gold, letterSpacing: "0.12em" }}
-        className="relative w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[14px] font-black uppercase text-white hover:opacity-90 active:scale-[.98] transition">
-        Team kennenlernen <ChevronRight className="w-4 h-4" />
-      </button>
-    </div>
-  );
-}
+// Steckbriefe bis Reisetag 2, danach Kontakte (Portrait + Telefonnummer, Antippen startet den Anruf).
+// Umschalter: für Admins immer (Vorschau), für Reisende erst ab dem Kontakt-Datum.
+export function TeamCard({ data, onOpen, isAdmin }) {
+  const autoContacts = isTeamContactMode(data);
+  const [contacts, setContacts] = useState(autoContacts);
+  useEffect(() => setContacts(autoContacts), [autoContacts]);
 
-// Ab Reisetag 2: Portrait + Telefonnummer, Antippen startet den Anruf
-function TeamContactCard({ data }) {
+  const tab = (active, label, onClick) => (
+    <button onClick={onClick} style={active ? { background: C.gold, color: "#fff" } : { color: C.silver }}
+      className="px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition">
+      {label}
+    </button>
+  );
+
   return (
     <div style={{ background: `linear-gradient(135deg, ${C.surfaceHigh}, ${C.surface})`, borderColor: `${C.gold}59` }}
       className="border-2 rounded-2xl p-5 space-y-4 relative overflow-hidden">
       <div style={{ background: `${C.gold}14` }} className="absolute -top-10 -right-10 w-40 h-40 rounded-full blur-2xl pointer-events-none" />
       <div className="relative space-y-1.5">
         <div className="flex items-center gap-2">
-          <Phone className="w-4 h-4" style={{ color: C.gold }} />
+          {contacts ? <Phone className="w-4 h-4" style={{ color: C.gold }} /> : <Users className="w-4 h-4" style={{ color: C.gold }} />}
           <Label>{data.label || "Meet the Team"}</Label>
-        </div>
-        <p className="text-xl font-extrabold">{data.contactHeadline || "Kontaktdaten"}</p>
-      </div>
-      <div className="relative space-y-2">
-        {TEAM_CONTACTS.map((m) => (
-          <a key={m.id} href={`tel:${m.phone.replace(/\s/g, "")}`}
-            style={{ background: `${C.charcoal}40`, borderColor: `${C.charcoal}66` }}
-            className="flex items-center gap-3 border rounded-xl p-2 pr-3 active:scale-[.98] transition">
-            {m.face ? (
-              <img src={m.face} alt={m.name} loading="lazy" style={{ borderColor: C.gold }}
-                className="w-12 h-12 shrink-0 rounded-full object-cover border-2" />
-            ) : (
-              <div style={{ borderColor: C.gold, background: C.charcoal }}
-                className="w-12 h-12 shrink-0 rounded-full border-2 flex items-center justify-center text-sm font-black">
-                {m.name.split(" ").map((p) => p[0]).join("")}
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold truncate">{m.name}</p>
-              <p style={{ color: C.silver, fontFamily: MONO }} className="text-[13px] truncate">{m.phone}</p>
+          {(isAdmin || autoContacts) && (
+            <div style={{ background: `${C.charcoal}66` }} className="ml-auto flex p-0.5 rounded-lg">
+              {tab(!contacts, "Steckbriefe", () => setContacts(false))}
+              {tab(contacts, "Kontakte", () => setContacts(true))}
             </div>
-            <span style={{ background: C.gold }} className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-white">
-              <Phone className="w-4 h-4" />
-            </span>
-          </a>
-        ))}
+          )}
+        </div>
+        {contacts
+          ? <p className="text-xl font-extrabold">{data.contactHeadline || "Kontaktdaten"}</p>
+          : data.headline && <p className="text-xl font-extrabold">{data.headline}</p>}
       </div>
+
+      {contacts ? (
+        <div className="relative space-y-2">
+          {TEAM_CONTACTS.map((m) => (
+            <a key={m.id} href={`tel:${m.phone.replace(/\s/g, "")}`}
+              style={{ background: `${C.charcoal}40`, borderColor: `${C.charcoal}66` }}
+              className="flex items-center gap-3 border rounded-xl p-2 pr-3 active:scale-[.98] transition">
+              {m.face ? (
+                <img src={m.face} alt={m.name} loading="lazy" style={{ borderColor: C.gold }}
+                  className="w-12 h-12 shrink-0 rounded-full object-cover border-2" />
+              ) : (
+                <div style={{ borderColor: C.gold, background: C.charcoal }}
+                  className="w-12 h-12 shrink-0 rounded-full border-2 flex items-center justify-center text-sm font-black">
+                  {m.name.split(" ").map((p) => p[0]).join("")}
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold truncate">{m.name}</p>
+                <p style={{ color: C.silver, fontFamily: MONO }} className="text-[13px] truncate">{m.phone}</p>
+              </div>
+              <span style={{ background: C.gold }} className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-white">
+                <Phone className="w-4 h-4" />
+              </span>
+            </a>
+          ))}
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-5 gap-2 relative">
+            {TEAM_MEMBERS.map((m) => (
+              <button key={m.id} onClick={() => onOpen?.(m.id)} disabled={!onOpen}
+                className="flex flex-col items-center gap-1.5 min-w-0 active:scale-95 transition">
+                <img src={m.face} alt={m.name} loading="lazy" style={{ borderColor: C.gold }}
+                  className="w-full aspect-square rounded-full object-cover border-2" />
+                <span className="text-[11px] font-bold truncate max-w-full">{m.name.split(" ")[0]}</span>
+              </button>
+            ))}
+          </div>
+          <button onClick={() => onOpen?.(null)} disabled={!onOpen} style={{ background: C.gold, letterSpacing: "0.12em" }}
+            className="relative w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[14px] font-black uppercase text-white hover:opacity-90 active:scale-[.98] transition">
+            Team kennenlernen <ChevronRight className="w-4 h-4" />
+          </button>
+        </>
+      )}
     </div>
   );
 }
@@ -1052,7 +1061,7 @@ export function HomeTab({ setTab, broadcasts, messages, travelers = [], schedule
               {tile.type === "weather" && <WeatherCard data={tile.data} />}
               {tile.type === "currency" && <CurrencyCard data={tile.data} />}
               {tile.type === "team" && (
-                <TeamCard data={tile.data} onOpen={editMode ? null : (focusId) => setTeamDetail({ tileId: tile.id, focusId })} />
+                <TeamCard data={tile.data} isAdmin={isAdmin} onOpen={editMode ? null : (focusId) => setTeamDetail({ tileId: tile.id, focusId })} />
               )}
             </div>
           );
