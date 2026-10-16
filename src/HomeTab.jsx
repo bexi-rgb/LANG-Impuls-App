@@ -7,7 +7,7 @@ import {
   Wine, Music, Car, Bell, Star, CalendarDays, QrCode,
   Sun, Cloud, CloudSun, CloudRain, CloudSnow, CloudFog, CloudLightning, CloudDrizzle,
   Droplets, Wind, RefreshCw, AlertCircle, Coins, ArrowLeftRight, Delete, Check,
-  Users,
+  Users, MessageCircle,
 } from 'lucide-react';
 import { C, MONO, TYPE_META, evDate, fmtDayShort, fmtDayLong, countdownLabel, mapsUrl, TEAM_MEMBERS, TEAM_CONTACTS, isTeamContactMode } from './constants.js';
 import { PushPrompt } from './PushPrompt.jsx';
@@ -410,7 +410,7 @@ export function InfoTileCard({ data }) {
   );
 }
 
-// Steckbriefe bis Reisetag 2, danach Kontakte (Portrait + Telefonnummer, Antippen startet den Anruf).
+// Steckbriefe bis Reisetag 2, danach Kontakte (Portrait-Bubbles, Antippen zeigt Nummer + Anruf/WhatsApp).
 // Umschalter: für Admins immer (Vorschau), für Reisende erst ab dem Kontakt-Datum.
 export function TeamCard({ data, onOpen, isAdmin }) {
   const autoContacts = isTeamContactMode(data);
@@ -424,51 +424,78 @@ export function TeamCard({ data, onOpen, isAdmin }) {
     </button>
   );
 
+  const [openId, setOpenId] = useState(null);
+  const openContact = TEAM_CONTACTS.find((m) => m.id === openId);
+
+  const toggle = (isAdmin || autoContacts) && (
+    <div style={{ background: `${C.charcoal}66` }} className="ml-auto flex p-0.5 rounded-lg">
+      {tab(!contacts, "Steckbriefe", () => setContacts(false))}
+      {tab(contacts, "Kontakte", () => setContacts(true))}
+    </div>
+  );
+
   return (
     <div style={{ background: `linear-gradient(135deg, ${C.surfaceHigh}, ${C.surface})`, borderColor: `${C.gold}59` }}
-      className="border-2 rounded-2xl p-5 space-y-4 relative overflow-hidden">
+      className={`border-2 rounded-2xl relative overflow-hidden ${contacts ? "p-4 space-y-3" : "p-5 space-y-4"}`}>
       <div style={{ background: `${C.gold}14` }} className="absolute -top-10 -right-10 w-40 h-40 rounded-full blur-2xl pointer-events-none" />
-      <div className="relative space-y-1.5">
-        <div className="flex items-center gap-2">
-          {contacts ? <Phone className="w-4 h-4" style={{ color: C.gold }} /> : <Users className="w-4 h-4" style={{ color: C.gold }} />}
-          <Label>{data.label || "Meet the Team"}</Label>
-          {(isAdmin || autoContacts) && (
-            <div style={{ background: `${C.charcoal}66` }} className="ml-auto flex p-0.5 rounded-lg">
-              {tab(!contacts, "Steckbriefe", () => setContacts(false))}
-              {tab(contacts, "Kontakte", () => setContacts(true))}
-            </div>
-          )}
+      {contacts ? (
+        <div className="relative flex items-center gap-2">
+          <Phone className="w-4 h-4" style={{ color: C.gold }} />
+          <Label>{data.contactHeadline || "Kontaktdaten"}</Label>
+          {toggle}
         </div>
-        {contacts
-          ? <p className="text-xl font-extrabold">{data.contactHeadline || "Kontaktdaten"}</p>
-          : data.headline && <p className="text-xl font-extrabold">{data.headline}</p>}
-      </div>
+      ) : (
+        <div className="relative space-y-1.5">
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4" style={{ color: C.gold }} />
+            <Label>{data.label || "Meet the Team"}</Label>
+            {toggle}
+          </div>
+          {data.headline && <p className="text-xl font-extrabold">{data.headline}</p>}
+        </div>
+      )}
 
       {contacts ? (
-        <div className="relative space-y-2">
-          {TEAM_CONTACTS.map((m) => (
-            <a key={m.id} href={`tel:${m.phone.replace(/\s/g, "")}`}
-              style={{ background: `${C.charcoal}40`, borderColor: `${C.charcoal}66` }}
-              className="flex items-center gap-3 border rounded-xl p-2 pr-3 active:scale-[.98] transition">
-              {m.face ? (
-                <img src={m.face} alt={m.name} loading="lazy" style={{ borderColor: C.gold }}
-                  className="w-12 h-12 shrink-0 rounded-full object-cover border-2" />
-              ) : (
-                <div style={{ borderColor: C.gold, background: C.charcoal }}
-                  className="w-12 h-12 shrink-0 rounded-full border-2 flex items-center justify-center text-sm font-black">
-                  {m.name.split(" ").map((p) => p[0]).join("")}
-                </div>
-              )}
+        <>
+          <div className="grid grid-cols-6 gap-2 relative">
+            {TEAM_CONTACTS.map((m) => {
+              const active = openId === m.id;
+              return (
+                <button key={m.id} onClick={() => setOpenId(active ? null : m.id)}
+                  className="flex flex-col items-center gap-1 min-w-0 active:scale-95 transition">
+                  {m.face ? (
+                    <img src={m.face} alt={m.name} loading="lazy" style={{ borderColor: active ? "#fff" : C.gold }}
+                      className="w-full aspect-square rounded-full object-cover border-2" />
+                  ) : (
+                    <div style={{ borderColor: active ? "#fff" : C.gold, background: C.charcoal }}
+                      className="w-full aspect-square rounded-full border-2 flex items-center justify-center text-xs font-black">
+                      {m.name.split(" ").map((p) => p[0]).join("")}
+                    </div>
+                  )}
+                  <span style={{ color: active ? "#fff" : C.silver }} className="text-[10px] font-bold truncate max-w-full">{m.name.split(" ")[0]}</span>
+                </button>
+              );
+            })}
+          </div>
+          {openContact && (
+            <div style={{ background: `${C.charcoal}40`, borderColor: `${C.charcoal}66` }}
+              className="relative flex items-center gap-3 border rounded-xl py-2 pl-3 pr-2 fadeup">
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold truncate">{m.name}</p>
-                <p style={{ color: C.silver, fontFamily: MONO }} className="text-[13px] truncate">{m.phone}</p>
+                <p className="text-sm font-bold truncate">{openContact.name}</p>
+                <p style={{ color: C.silver, fontFamily: MONO }} className="text-[12px] truncate">{openContact.phone}</p>
               </div>
-              <span style={{ background: C.gold }} className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-white">
+              <a href={`tel:${openContact.phone.replace(/\s/g, "")}`} aria-label={`${openContact.name} anrufen`}
+                style={{ background: C.gold }} className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-white active:scale-95 transition">
                 <Phone className="w-4 h-4" />
-              </span>
-            </a>
-          ))}
-        </div>
+              </a>
+              {/* WhatsApp hat keinen offiziellen Link, der direkt einen Anruf startet – wa.me öffnet den Chat, dort Anruf-Symbol */}
+              <a href={`https://wa.me/${openContact.phone.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" aria-label={`${openContact.name} per WhatsApp`}
+                style={{ background: "#25D366" }} className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-white active:scale-95 transition">
+                <MessageCircle className="w-4 h-4" />
+              </a>
+            </div>
+          )}
+        </>
       ) : (
         <>
           <div className="grid grid-cols-5 gap-2 relative">
