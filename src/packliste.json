@@ -3,55 +3,92 @@
     {
       "kategorie": "Dokumente & Geld",
       "punkte": [
-        "Reisepass (noch mind. 6 Monate gültig)",
-        "Kreditkarte",
+        "Reisepass (noch mind. 6 Monate gültig & immer dabei für Eintritt in Bars und Co.)",
+        "Kreditkarte + zweite Zahlungsmöglichkeit, getrennt aufbewahrt",
+        "Etwas Bargeld in Taiwan-Dollar (TWD) für kleine Ausgaben",
         "Krankenversicherungskarte / Auslandskrankenversicherung",
-        "Viele Visitenkarten (Herstellerbesuche)"
+        "Visitenkarten im Etui (Herstellerbesuche)",
+        "Reisedokumente und Buchungsbestätigungen digital und offline auf dem Handy",
+        "Notfallkontakte und wichtige medizinische Infos (Zettel im Portemonnaie)",
+        "Kofferanhänger mit Kontaktdaten"
+      ]
+    },
+    {
+      "kategorie": "Im Handgepäck (Flug ca. 13 Std)",
+      "punkte": [
+        "Powerbank (nur im Handgepäck erlaubt) + Ladekabel",
+        "Kopfhörer",
+        "Nackenkissen",
+        "Schlafmaske und Ohrstöpsel",
+        "Zahnbürste, Zahnpasta und Deo (Flüssigkeiten max. 100 ml im 1-Liter-Beutel)",
+        "Wechselshirt und frische Unterwäsche",
+        "Lippenpflege und kleine Feuchtigkeitscreme (Flugzeugluft!)",
+        "Kaugummi oder Bonbons für Start und Landung",
+        "Snacks für Flug und Transfer",
+        "Leere Trinkflasche, nach der Sicherheitskontrolle auffüllen",
+        "Persönliche Medikamente (in Originalverpackung)",
+        "Brille bzw. Ersatzbrille, Kontaktlinsen und Zubehör"
       ]
     },
     {
       "kategorie": "Technik",
       "punkte": [
         "Reiseadapter Typ A/B (Taiwan: US-Stecker, 110 V)",
-        "Powerbank + Ladekabel",
         "eSIM vorab installiert (QR-Code kommt per Mail)",
-        "Kopfhörer für den Flug"
+        "Ersatz-Ladekabel"
       ]
     },
     {
-      "kategorie": "Kleidung",
+      "kategorie": "Business & Herstellerbesuche (Fr, Mo, Di)",
       "punkte": [
-        "Business-Outfit für die Herstellerbesuche (Fr, Mo, Di)",
+        "Business-Outfits",
+        "Zweites Business-Hemd bzw. Bluse als Reserve",
+        "Gürtel und passende Business-Socken",
+        "Leichte, ordentliche Schuhe (falls nicht die Laufschuhe)",
+        "Notizbuch und Stift",
+        "Kleine Tasche für Visitenkarten, Unterlagen und Giveaways",
+        "Fleckenstift"
+      ]
+    },
+    {
+      "kategorie": "Kleidung & Schuhe",
+      "punkte": [
+        "Gemütliche, gute Kleidung für Aktivitäten (Sa, So)",
         "Bequeme Schuhe zum Laufen",
-        "Geschlossene Schuhe (Kartbahn, Radtour)",
+        "Geschlossene Schuhe (für Aktivitäten)",
+        "FlipFlops/Schlappen",
         "Leichte Regenjacke oder Schirm (November ca. 20–25 °C, Regen möglich)",
         "Pulli oder Jacke für klimatisierte Busse und Räume",
-        "Etwas Schickes für die Abende"
+        "Ersatzsocken für lange Aktivitätstage",
+        "Leichter Beutel für Wäsche"
       ]
     },
     {
-      "kategorie": "Wasser & Action",
+      "kategorie": "Wasser & Action (Wasseraktivitäten)",
       "punkte": [
         "Badesachen",
-        "Schnell trocknende Kleidung + Wechselkleidung (River Tracing Sa, Kanu So)",
-        "Schuhe, die nass werden dürfen",
-        "Sonnencreme, Kappe",
-        "Mückenschutz"
+        "Schnelltrocknendes Handtuch",
+        "Kleiner wasserdichter Beutel für Handy und Wertsachen",
+        "Zip- oder Müllbeutel für nasse Badesachen",
+        "Sonnencreme",
+        "Sonnenbrille",
+        "Kappe",
+        "Mückenschutz und juckreizlinderndes Gel"
       ]
     },
     {
-      "kategorie": "Gesundheit",
+      "kategorie": "Gesundheit & Hygiene",
       "punkte": [
-        "Persönliche Medikamente",
-        "Reisetabletten (kurvige Küstenstraße)",
-        "Pflaster"
+        "Reisetabletten (kurvige Busfahrten)",
+        "Kleines Erste-Hilfe-Set: Blasenpflaster, Schmerzmittel, Durchfallmittel, Elektrolyte (sofern verträglich)",
+        "Taschentücher und Feuchttücher",
+        "Handdesinfektionsmittel"
       ]
     },
     {
       "kategorie": "Sonstiges",
       "punkte": [
-        "Handylicht oder kleine Taschenlampe (Elephant Mountain bei Dämmerung)",
-        "Wiederverwendbare Wasserflasche",
+        "Handytaschenlampe oder kleine Taschenlampe (für Abendaktivitäten)",
         "Kleiner Tagesrucksack",
         "Platz im Koffer für Souvenirs"
       ]
