@@ -540,8 +540,9 @@ export function TeamDetailView({ data, focusId, onClose }) {
           {TEAM_MEMBERS.map((m) => (
             <section key={m.id} ref={(el) => { refs.current[m.id] = el; }} style={{ borderColor: `${C.charcoal}66`, scrollMarginTop: "6rem" }}
               className="border rounded-2xl overflow-hidden">
-              <div style={{ background: C.charcoal }} className="relative">
-                <img src={m.photo} alt={m.name} loading="lazy" className="w-full aspect-square object-cover" />
+              {/* Fotos sind nur ~480px groß – kleiner zentriert auf gleichem Grau statt hochskaliert */}
+              <div style={{ background: "#575756" }} className="relative pt-4 pb-14">
+                <img src={m.photo} alt={m.name} loading="lazy" className="block w-[65%] max-w-[240px] mx-auto aspect-square object-cover" />
                 <div className="absolute inset-x-0 bottom-0 px-4 pb-3 pt-10" style={{ background: "linear-gradient(transparent, rgba(0,0,0,0.75))" }}>
                   <p className="text-lg font-black leading-tight">{m.name}</p>
                   <p style={{ color: C.silver }} className="text-sm">{m.role}</p>

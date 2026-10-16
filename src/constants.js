@@ -64,18 +64,6 @@ export const INITIAL_TICKER = "FLUG CI 062: PÜNKTLICH • WETTER IN TAIPEH: 24�
 /* Meet the Team – Inhalte aus IMPULS_Reisende.pdf, Fotos unter public/team/ */
 export const TEAM_MEMBERS = [
   {
-    id: "nishaanth", name: "Nishaanth Balachandran", role: "Director Sales Integration",
-    photo: "/team/nishaanth.jpg", face: "/team/nishaanth-face.jpg",
-    phone: "+49 1525 6476405",
-    facts: [
-      ["Run time", "Seit 2019 bei der LANG AG"],
-      ["Resolution (Core Focus)", "4K gestochen scharf"],
-      ["Power (Source)", "Familie, Berge und das Meer"],
-      ["Colour Temperature (Vibe Check)", "4.300 K – warm & präzise"],
-      ["Area of Application (hobby, hidden talent)", "MLC Rennrad, Guter Kaffee, eine napoletanische Pizza + Fussball"],
-    ],
-  },
-  {
     id: "mark", name: "Mark Moosmayer", role: "Director Sales",
     photo: "/team/mark.jpg", face: "/team/mark-face.jpg",
     phone: "+49 170 3720573",
@@ -85,6 +73,18 @@ export const TEAM_MEMBERS = [
       ["Power Source", "Cola Zero"],
       ["Application Area", "Outdoor – Optimale Performance mit Laufschuhen"],
       ["Discovery Mode", "Always On"],
+    ],
+  },
+  {
+    id: "nishaanth", name: "Nishaanth Balachandran", role: "Director Sales Integration",
+    photo: "/team/nishaanth.jpg", face: "/team/nishaanth-face.jpg",
+    phone: "+49 1525 6476405",
+    facts: [
+      ["Run time", "Seit 2019 bei der LANG AG"],
+      ["Resolution (Core Focus)", "4K gestochen scharf"],
+      ["Power (Source)", "Familie, Berge und das Meer"],
+      ["Colour Temperature (Vibe Check)", "4.300 K – warm & präzise"],
+      ["Area of Application (hobby, hidden talent)", "MLC Rennrad, Guter Kaffee, eine napoletanische Pizza + Fussball"],
     ],
   },
   {
@@ -112,18 +112,6 @@ export const TEAM_MEMBERS = [
     ],
   },
   {
-    id: "rebekka", name: "Rebekka Gingell", role: "Manager Event Technology",
-    photo: "/team/rebekka.jpg", face: "/team/rebekka-face.jpg",
-    phone: "+49 1525 6476416",
-    facts: [
-      ["Run time", "Seit 2025 bei der LANG AG"],
-      ["Technology", "MiP Media History-in-Pocket"],
-      ["Colour Temperature", "10.000 K, tiefenentspannt wie ein blauer Himmel"],
-      ["Power Source", "Flat White mit Hafermilch"],
-      ["Application Area", "Indoor/Outdoor – Lesen + Fahrrad fahren + Kohlenhydratkonsum (am besten alles gleichzeitig)"],
-    ],
-  },
-  {
     id: "marcel", name: "Marcel Schmidt", role: "Director Sales • LANG BARANDAY AG",
     photo: "/team/marcel.jpg", face: "/team/marcel-face.jpg",
     phone: "+41 78 644 57 81",
@@ -133,6 +121,18 @@ export const TEAM_MEMBERS = [
       ["Power Source", "In der Ruhe liegt die Kraft"],
       ["Konfiguration", "Am liebsten im Team – auf der Arbeit und auf dem Fußballplatz"],
       ["Area of Application", "Die Kollegen und die Familie sind immer Heimspiel"],
+    ],
+  },
+  {
+    id: "rebekka", name: "Rebekka Gingell", role: "Manager Event Technology",
+    photo: "/team/rebekka.jpg", face: "/team/rebekka-face.jpg",
+    phone: "+49 1525 6476416",
+    facts: [
+      ["Run time", "Seit 2025 bei der LANG AG"],
+      ["Technology", "MiP Media History-in-Pocket"],
+      ["Colour Temperature", "10.000 K, tiefenentspannt wie ein blauer Himmel"],
+      ["Power Source", "Flat White mit Hafermilch"],
+      ["Application Area", "Indoor/Outdoor – Lesen + Fahrrad fahren + Kohlenhydratkonsum (am besten alles gleichzeitig)"],
     ],
   },
 ];
