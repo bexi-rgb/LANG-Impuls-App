@@ -27,6 +27,15 @@ export const TRIP_DAYS = ["2026-11-05", "2026-11-06", "2026-11-07", "2026-11-08"
 export const evDate = (e) => new Date(`${e.date}T${e.time}:00`);
 export const fmtDayLong = (d) => new Date(`${d}T12:00:00`).toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long" });
 export const fmtDayShort = (d) => new Date(`${d}T12:00:00`).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "short" });
+// Aufdecken von Programmpunkten: hidden = bis zur manuellen Freigabe versteckt,
+// revealAt = ISO-Zeitpunkt, ab dem der Termin automatisch sichtbar ist.
+export const isRevealed = (e, now = Date.now()) => !e.hidden && (!e.revealAt || new Date(e.revealAt).getTime() <= now);
+// Freigabezeit wird in Taiwan-Zeit eingegeben/angezeigt (UTC+8, keine Sommerzeit) —
+// egal ob das Admin-Gerät gerade in Deutschland oder Taipeh ist.
+export const TAIPEI_TZ = "Asia/Taipei";
+export const taipeiInputToIso = (v) => (v ? new Date(`${v}:00+08:00`).toISOString() : null);
+export const isoToTaipeiInput = (iso) => (iso ? new Date(new Date(iso).getTime() + 8 * 3600000).toISOString().slice(0, 16) : "");
+export const fmtRevealAt = (iso) => new Date(iso).toLocaleString("de-DE", { timeZone: TAIPEI_TZ, weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 export const TYPE_META = {
   flight: { icon: PlaneTakeoff, label: "Flug" },
   arrival: { icon: PlaneLanding, label: "Ankunft" },
@@ -114,13 +123,22 @@ export const TEAM_MEMBERS = [
       ["Application Area", "Indoor/Outdoor – Lesen + Fahrrad fahren + Kohlenhydratkonsum (am besten alles gleichzeitig)"],
     ],
   },
+  {
+    id: "marcel", name: "Marcel Schmidt", role: "Director Sales • LANG BARANDAY AG",
+    photo: "/team/marcel.jpg", face: "/team/marcel-face.jpg",
+    phone: "+41 78 644 57 81",
+    facts: [
+      ["Run time", "Seit 2019 bei LANG BARANDAY AG"],
+      ["Refresh Rate", "Wenn's kein Flackern hat, kanns kein LED sein"],
+      ["Power Source", "In der Ruhe liegt die Kraft"],
+      ["Konfiguration", "Am liebsten im Team – auf der Arbeit und auf dem Fußballplatz"],
+      ["Area of Application", "Die Kollegen und die Familie sind immer Heimspiel"],
+    ],
+  },
 ];
 
 /* Kontakt-Modus der Team-Kachel: alle Team-Mitglieder + weitere Ansprechpartner ohne Steckbrief */
-export const TEAM_CONTACTS = [
-  ...TEAM_MEMBERS,
-  { id: "marcel", name: "Marcel Schmidt", phone: "+41 78 644 57 81" },
-];
+export const TEAM_CONTACTS = [...TEAM_MEMBERS];
 
 const TEAM_TILE_DEFAULT = () => ({
   label: "Meet the Team",

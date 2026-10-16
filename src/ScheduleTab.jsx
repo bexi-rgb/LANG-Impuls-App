@@ -2,9 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Calendar, Clock, MapPin, PlaneTakeoff, PlaneLanding, CalendarDays, Bus,
   Utensils, Landmark, Plus, Edit3, Check, X, Trash2, Download, ArrowRight,
-  ChevronLeft, ChevronRight, ChevronDown, QrCode, BookOpen, ImagePlus, Loader2, Lightbulb,
+  ChevronLeft, ChevronRight, ChevronDown, QrCode, BookOpen, ImagePlus, Loader2, Lightbulb, Eye, EyeOff,
 } from 'lucide-react';
-import { C, MONO, TRIP_DAYS, TYPE_META, evDate, fmtDayLong, fmtDayShort, downloadICS, mapsUrl } from './constants.js';
+import {
+  C, MONO, TRIP_DAYS, TYPE_META, evDate, fmtDayLong, fmtDayShort, downloadICS, mapsUrl,
+  isRevealed, taipeiInputToIso, isoToTaipeiInput, fmtRevealAt,
+} from './constants.js';
 import { Label, AppOverlay } from './shell.jsx';
 import { downscaleImage } from './lib/image.js';
 
@@ -121,6 +124,9 @@ export function ScheduleEventModal({ initial, defaultDate, docs = [], onSave, on
   const [sponsorLogo, setSponsorLogo] = useState(initial?.sponsorLogo ? { url: initial.sponsorLogo } : null);
   const [factText, setFactText] = useState(initial?.factText || "");
   const [factImage, setFactImage] = useState(initial?.factImage ? { url: initial.factImage } : null);
+  // Sichtbarkeit: 'now' = sofort, 'at' = ab Zeitpunkt (Taiwan-Zeit), 'manual' = bis zur Freigabe versteckt
+  const [visibility, setVisibility] = useState(initial?.hidden ? "manual" : initial?.revealAt ? "at" : "now");
+  const [revealInput, setRevealInput] = useState(isoToTaipeiInput(initial?.revealAt));
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const input = { background: `${C.charcoal}4d`, borderColor: `${C.charcoal}80` };
@@ -146,7 +152,10 @@ export function ScheduleEventModal({ initial, defaultDate, docs = [], onSave, on
       factImage: factImage && !factImage.file ? factImage.url : undefined,
       factImagePath: factImage && !factImage.file ? initial?.factImagePath : undefined,
       factImageFile: factImage?.file,
+      hidden: visibility === "manual",
+      revealAt: visibility === "at" ? taipeiInputToIso(revealInput) : undefined,
     };
+    if (visibility === "at" && !ev.revealAt) { setSaveError("Bitte eine Freigabezeit wählen."); return; }
     setSaving(true);
     setSaveError(null);
     try {
@@ -245,6 +254,30 @@ export function ScheduleEventModal({ initial, defaultDate, docs = [], onSave, on
           <ImagePickField label="Fakt-Bild (optional)" value={factImage} onChange={setFactImage}
             prepare={(f) => downscaleImage(f, 1600, 0.85)}
             previewClass="w-12 h-16" previewStyle={{ background: "#000" }} />
+
+          <div className="space-y-1.5">
+            <p style={{ color: C.silver, fontFamily: MONO, letterSpacing: "0.15em" }} className="text-[12px] font-bold uppercase">Sichtbar für Reisende</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {[["now", "Sofort"], ["at", "Ab Zeitpunkt"], ["manual", "Manuell"]].map(([v, l]) => (
+                <button key={v} type="button" onClick={() => {
+                  setVisibility(v);
+                  if (v === "at" && !revealInput) setRevealInput(`${date}T${time}`);
+                }}
+                  style={visibility === v ? { background: C.gold, color: "#fff" } : { background: `${C.charcoal}4d`, color: C.silver }}
+                  className="py-2 rounded-xl text-[12px] font-black uppercase active:scale-95 transition">{l}</button>
+              ))}
+            </div>
+            {visibility === "at" && (
+              <>
+                <input type="datetime-local" value={revealInput} onChange={(e) => setRevealInput(e.target.value)} style={input}
+                  className="w-full border rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none" />
+                <p style={{ color: C.silver }} className="text-[13px]">Uhrzeit in Taiwan-Zeit. Vorher nur für Admins sichtbar.</p>
+              </>
+            )}
+            {visibility === "manual" && (
+              <p style={{ color: C.silver }} className="text-[13px]">Bleibt versteckt, bis du am Termin „Jetzt freigeben“ tippst.</p>
+            )}
+          </div>
         </div>
 
         {saveError && <p className="text-sm" style={{ color: "#e57373" }}>{saveError}</p>}
@@ -267,8 +300,22 @@ export function ScheduleEventModal({ initial, defaultDate, docs = [], onSave, on
   );
 }
 
-export function ScheduleTab({ schedule, docs = [], onOpenDoc, isAdmin = false, onAddEvent, onUpdateEvent, onDeleteEvent }) {
+export function ScheduleTab({ schedule, docs = [], onOpenDoc, isAdmin = false, onAddEvent, onUpdateEvent, onDeleteEvent, onRevealEvents }) {
   const [day, setDay] = useState(0);
+  // Uhr für den Versteckt-Status in der Admin-Ansicht (Freigabezeit kann jederzeit verstreichen)
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(t);
+  }, []);
+  const [revealing, setRevealing] = useState(false);
+  const reveal = async (ids, label) => {
+    if (revealing || !window.confirm(`${label} jetzt für alle Reisenden freigeben?`)) return;
+    setRevealing(true);
+    try { await onRevealEvents(ids); }
+    catch (e) { console.warn('[schedule]', e?.message); window.alert("Freigeben fehlgeschlagen. Bitte Verbindung prüfen."); }
+    finally { setRevealing(false); }
+  };
   const [editing, setEditing] = useState(null); // null | { mode: 'add'|'edit', event? }
   const [menuEvent, setMenuEvent] = useState(null); // Termin, dessen Menükarte offen ist
   const [factId, setFactId] = useState(null); // Termin, dessen Fakten-Box aufgeklappt ist
@@ -283,7 +330,9 @@ export function ScheduleTab({ schedule, docs = [], onOpenDoc, isAdmin = false, o
   };
   const date = TRIP_DAYS[day];
   const events = schedule.filter((e) => e.date === date).sort((a, b) => evDate(a) - evDate(b));
-  const nextId = [...schedule].sort((a, b) => evDate(a) - evDate(b)).find((x) => evDate(x) > Date.now())?.id;
+  const hiddenToday = events.filter((e) => !isRevealed(e, now));
+  // NEXT so markieren, wie Reisende es sehen — versteckte Termine zählen nicht
+  const nextId = [...schedule].filter((x) => isRevealed(x, now)).sort((a, b) => evDate(a) - evDate(b)).find((x) => evDate(x) > now)?.id;
   return (
     <div className="fadeup p-4 pb-6 space-y-5 select-none relative" onPointerDown={onDown} onPointerUp={onUp} style={{ touchAction: "pan-y" }}>
       <div className="border-b pb-4 space-y-3" style={{ borderColor: `${C.charcoal}33` }}>
@@ -323,6 +372,23 @@ export function ScheduleTab({ schedule, docs = [], onOpenDoc, isAdmin = false, o
         ))}
       </div>
 
+      {isAdmin && hiddenToday.length > 0 && (
+        <div style={{ background: `${C.charcoal}33`, borderColor: `${C.charcoal}80` }}
+          className="border border-dashed rounded-xl px-3.5 py-2.5 flex items-center justify-between gap-3">
+          <p style={{ color: C.silver }} className="text-sm flex items-center gap-2">
+            <EyeOff className="w-4 h-4 shrink-0" />
+            {hiddenToday.length === 1 ? "1 Termin" : `${hiddenToday.length} Termine`} für Reisende versteckt
+          </p>
+          {hiddenToday.length > 1 && (
+            <button onClick={() => reveal(hiddenToday.map((e) => e.id), `Alle ${hiddenToday.length} versteckten Termine von ${fmtDayShort(date)}`)}
+              disabled={revealing} style={{ color: C.gold, letterSpacing: "0.1em" }}
+              className="text-[12px] font-black uppercase shrink-0 hover:underline active:scale-95 transition disabled:opacity-50">
+              Alle freigeben
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Timeline for the day */}
       <div key={`list-${date}`} className="space-y-3 fadeup">
         {events.length === 0 && (
@@ -340,9 +406,10 @@ export function ScheduleTab({ schedule, docs = [], onOpenDoc, isAdmin = false, o
           const meta = TYPE_META[e.type] || TYPE_META.activity;
           const Icon = meta.icon;
           const isNext = e.id === nextId;
+          const isHidden = !isRevealed(e, now);
           return (
-            <div key={e.id} style={{ background: C.surface, borderColor: isNext ? `${C.gold}80` : `${C.charcoal}4d` }}
-              className={`border rounded-2xl p-4 flex gap-3.5 ${isNext ? "border-2" : ""}`}>
+            <div key={e.id} style={{ background: C.surface, borderColor: isNext ? `${C.gold}80` : `${C.charcoal}${isHidden ? "99" : "4d"}` }}
+              className={`border rounded-2xl p-4 flex gap-3.5 ${isNext ? "border-2" : ""} ${isHidden ? "border-dashed" : ""}`}>
               <div className="flex flex-col items-center shrink-0">
                 <span style={{ fontFamily: MONO, color: C.gold }} className="text-sm font-black">{e.time}</span>
                 <div style={{ background: `${C.gold}1a`, borderColor: `${C.gold}40` }} className="w-11 h-11 rounded-xl border flex items-center justify-center mt-1.5">
@@ -363,6 +430,20 @@ export function ScheduleTab({ schedule, docs = [], onOpenDoc, isAdmin = false, o
                     )}
                   </div>
                 </div>
+                {isAdmin && isHidden && (
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    <span style={{ background: `${C.charcoal}4d`, color: C.silver, letterSpacing: "0.08em" }}
+                      className="text-[12px] font-bold uppercase px-2 py-1 rounded-lg flex items-center gap-1.5">
+                      <EyeOff className="w-3.5 h-3.5" />
+                      {e.hidden ? "Versteckt · manuell" : `Versteckt bis ${fmtRevealAt(e.revealAt)} (TW)`}
+                    </span>
+                    <button onClick={() => reveal([e.id], `„${e.title}“`)} disabled={revealing}
+                      style={{ background: `${C.gold}1a`, borderColor: `${C.gold}40`, color: C.gold, letterSpacing: "0.1em" }}
+                      className="px-2.5 py-1 rounded-lg border text-[12px] font-black uppercase flex items-center gap-1.5 active:scale-95 transition disabled:opacity-50">
+                      <Eye className="w-3.5 h-3.5" /> Jetzt freigeben
+                    </button>
+                  </div>
+                )}
                 {e.location && (
                   <a href={mapsUrl(e.location)} target="_blank" rel="noopener noreferrer" style={{ color: C.silver }}
                     className="text-sm mt-1 flex items-center gap-1.5 underline decoration-dotted underline-offset-2 hover:text-white active:opacity-70">

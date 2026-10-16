@@ -411,7 +411,7 @@ export function InfoTileCard({ data }) {
 }
 
 // Steckbriefe bis Reisetag 2, danach Kontakte (Portrait-Bubbles, Antippen zeigt Nummer + Anruf/WhatsApp).
-// Umschalter: für Admins immer (Vorschau), für Reisende erst ab dem Kontakt-Datum.
+// Umschalter nur für Admins; Reisende sehen den Modus laut Kachel-Einstellung.
 export function TeamCard({ data, onOpen, isAdmin }) {
   const autoContacts = isTeamContactMode(data);
   const [contacts, setContacts] = useState(autoContacts);
@@ -427,7 +427,7 @@ export function TeamCard({ data, onOpen, isAdmin }) {
   const [openId, setOpenId] = useState(null);
   const openContact = TEAM_CONTACTS.find((m) => m.id === openId);
 
-  const toggle = (isAdmin || autoContacts) && (
+  const toggle = isAdmin && (
     <div style={{ background: `${C.charcoal}66` }} className="ml-auto flex p-0.5 rounded-lg">
       {tab(!contacts, "Steckbriefe", () => setContacts(false))}
       {tab(contacts, "Kontakte", () => setContacts(true))}
@@ -498,7 +498,7 @@ export function TeamCard({ data, onOpen, isAdmin }) {
         </>
       ) : (
         <>
-          <div className="grid grid-cols-5 gap-2 relative">
+          <div className="grid grid-cols-6 gap-2 relative">
             {TEAM_MEMBERS.map((m) => (
               <button key={m.id} onClick={() => onOpen?.(m.id)} disabled={!onOpen}
                 className="flex flex-col items-center gap-1.5 min-w-0 active:scale-95 transition">

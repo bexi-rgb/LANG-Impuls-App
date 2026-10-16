@@ -5,7 +5,7 @@ import {
 import {
   INITIAL_TRAVELERS, INITIAL_MESSAGES, INITIAL_PHOTOS, INITIAL_SCHEDULE,
   INITIAL_DOCS, INITIAL_HOME_TILES, INITIAL_TICKER, TILE_TEMPLATES,
-  evDate, fmtDayShort, conciergeReply, C,
+  evDate, fmtDayShort, conciergeReply, C, isRevealed,
 } from './constants.js';
 import { usePersistentState, loadValue, saveValue, removeValue, clearAll } from './storage.js';
 import {
@@ -107,7 +107,9 @@ export default function App() {
   const { data: broadcastNotifications, loading: broadcastsLoading } = useCollection('notifications', { orderBy: 'created_at', ascending: false });
 
   const [scheduleLocal, setScheduleLocal] = usePersistentState('schedule', INITIAL_SCHEDULE);
-  const { data: scheduleRemote } = useCollection('schedule', { orderBy: 'date' });
+  // pollMs: zeitgesteuert freigegebene Termine erzeugen kein Realtime-Event (die Zeile
+  // ändert sich nicht, nur RLS lässt sie ab reveal_at durch) — daher minütlich nachladen.
+  const { data: scheduleRemote } = useCollection('schedule', { orderBy: 'date', pollMs: 60000 });
   const schedule = isSupabaseConfigured
     ? scheduleRemote.map((e) => ({
         id: e.id, date: e.date, time: (e.time || '').slice(0, 5), title: e.title, location: e.location || undefined, type: e.type, docId: e.doc_id || undefined,
@@ -116,6 +118,7 @@ export default function App() {
         sponsorLogoPath: e.sponsor_logo_path || undefined, sponsorLogo: e.sponsor_logo_path ? getPublicUrl('photos', e.sponsor_logo_path) : undefined,
         factText: e.fact_text || undefined,
         factImagePath: e.fact_image_path || undefined, factImage: e.fact_image_path ? getPublicUrl('photos', e.fact_image_path) : undefined,
+        hidden: !!e.hidden, revealAt: e.reveal_at || undefined,
       }))
     : scheduleLocal;
 
@@ -527,7 +530,16 @@ export default function App() {
     date: ev.date, time: ev.time, title: ev.title, location: ev.location || null, type: ev.type, doc_id: ev.docId || null,
     menu_path: ev.menuPath || null, sponsor_name: ev.sponsorName || null, sponsor_logo_path: ev.sponsorLogoPath || null,
     fact_text: ev.factText || null, fact_image_path: ev.factImagePath || null,
+    hidden: !!ev.hidden, reveal_at: ev.revealAt || null,
   });
+  // „Jetzt freigeben“ für einen oder mehrere Termine (z.B. ganzer Tag)
+  const revealEvents = async (ids) => {
+    if (isSupabaseConfigured) {
+      await Promise.all(ids.map((id) => updateRow('schedule', id, { hidden: false, reveal_at: null })));
+      return;
+    }
+    setScheduleLocal((s) => s.map((x) => (ids.includes(x.id) ? { ...x, hidden: false, revealAt: undefined } : x)));
+  };
   // Ersetzte oder entfernte Bilder aus dem Storage löschen
   const removeStaleMedia = (prev, next) => {
     for (const key of ['menuPath', 'sponsorLogoPath', 'factImagePath']) {
@@ -644,8 +656,8 @@ export default function App() {
       <div style={{ background: C.bg }} className="relative h-full flex flex-col text-white">
         <Header notifications={notifications} onClear={clearNotifications} user={user} onLogout={logout} onUpdateAvatar={updateAvatar} />
         <main className="flex-1 min-h-0 overflow-y-auto">
-          {tab === "home" && <HomeTab setTab={setTab} broadcasts={broadcasts} messages={messages} travelers={travelers} schedule={schedule} onOpenDoc={openDoc} tiles={homeTiles} ticker={ticker} isAdmin={user.role === "admin"} onUpdateTile={updateTile} onReorderTiles={reorderTiles} onDeleteTile={deleteTile} onAddTile={addTile} onUpdateTicker={updateTicker} user={user} />}
-          {tab === "schedule" && <ScheduleTab schedule={schedule} docs={docs} onOpenDoc={openDoc} isAdmin={user.role === "admin"} onAddEvent={addEvent} onUpdateEvent={updateEvent} onDeleteEvent={deleteEvent} />}
+          {tab === "home" && <HomeTab setTab={setTab} broadcasts={broadcasts} messages={messages} travelers={travelers} schedule={schedule.filter((e) => isRevealed(e))} onOpenDoc={openDoc} tiles={homeTiles} ticker={ticker} isAdmin={user.role === "admin"} onUpdateTile={updateTile} onReorderTiles={reorderTiles} onDeleteTile={deleteTile} onAddTile={addTile} onUpdateTicker={updateTicker} user={user} />}
+          {tab === "schedule" && <ScheduleTab schedule={user.role === "admin" ? schedule : schedule.filter((e) => isRevealed(e))} docs={docs} onOpenDoc={openDoc} isAdmin={user.role === "admin"} onAddEvent={addEvent} onUpdateEvent={updateEvent} onDeleteEvent={deleteEvent} onRevealEvents={revealEvents} />}
           {tab === "documents" && <DocumentsTab user={user} docs={docs} travelers={travelers} focusId={docFocus} onAddDoc={addDoc} />}
           {tab === "chat" && <ChatTab user={user} focus={chatFocus} travelers={travelers} messages={messages} onSend={sendMessage} onRetry={retryMessage} typing={typing} onToggleReaction={toggleReaction} onMarkRead={markChannelRead} chatStart={chatStart} />}
           {tab === "photos" && <PhotosTab photos={photos} user={user} onComment={addComment} onShare={sharePhoto} onDelete={deletePhoto} />}
